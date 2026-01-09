@@ -14,7 +14,45 @@
 
 ## 快速开始（Windows）
 
-从 PowerShell 调用（推荐 `powershell.exe`；安装了 PowerShell 7 也可用 `pwsh`）：
+### 免安装（最简单，适合做 hook）
+在仓库根目录直接运行：
+
+```bat
+.\ai-chat-notify.cmd -Title "Codex" -Subtitle "Turn complete" -Message "Check your CLI/IDE for details."
+```
+
+也可以显式调用脚本目录里的包装器：
+
+```bat
+.\scripts\ai-chat-notify.cmd -Title "Codex" -Subtitle "Turn complete" -Message "Check your CLI/IDE for details."
+```
+
+### 安装（可选：让 `ai-chat-notify` 全局可用）
+在仓库根目录运行（会把脚本复制到用户目录；`-AddToPath` 会修改你的用户级 PATH）：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./install.ps1" -AddToPath
+```
+
+重启终端后即可直接调用：
+
+```powershell
+ai-chat-notify -Title "Codex" -Subtitle "Turn complete" -Message "Check your CLI/IDE for details."
+```
+
+卸载（可选：`-RemoveFromPath` 会修改你的用户级 PATH）：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./uninstall.ps1" -RemoveFromPath
+```
+
+安装后也支持直接用 `stdin` 传事件 JSON：
+
+```powershell
+Get-Content "./examples/codex-agent-turn-complete.json" -Raw | ai-chat-notify -Method "popup" -DurationSeconds 2 -NoSound
+```
+
+从 PowerShell 直接调用入口脚本（不依赖 `.cmd`）：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notify.ps1" `
@@ -22,19 +60,29 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
   -Method "popup" -DurationSeconds 3 -NoSound
 ```
 
-从任意工具/脚本（更通用）调用：
-
-```bat
-.\scripts\ai-chat-notify.cmd -Title "Codex" -Subtitle "Turn complete" -Message "Check your CLI/IDE for details."
-```
-
 ## 事件 JSON 输入
 
-你可以把事件 JSON **作为第 1 个位置参数**传入（方便做 hook）：
+三种方式任选其一（更推荐 `stdin` 或 `-EventFile`，避免转义/引号问题）：
+
+### 1) 位置参数（兼容 Codex hook）
+你可以把事件 JSON **作为第 1 个位置参数**传入：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notify.ps1" `
   (Get-Content "./examples/codex-agent-turn-complete.json" -Raw)
+```
+
+### 2) stdin（推荐：最好集成、最少转义）
+
+```powershell
+Get-Content "./examples/codex-agent-turn-complete.json" -Raw | .\ai-chat-notify.cmd -Method "popup" -DurationSeconds 2 -NoSound
+```
+
+### 3) `-EventFile`
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notify.ps1" `
+  -EventFile "./examples/codex-agent-turn-complete.json" -Method "popup" -DurationSeconds 2 -NoSound
 ```
 
 ### 推荐事件结构（通用）

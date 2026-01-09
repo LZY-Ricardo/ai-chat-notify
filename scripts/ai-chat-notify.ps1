@@ -9,6 +9,7 @@ param(
   [int]$DurationSeconds,
   [switch]$NoSound,
   [AllowNull()][string]$EventJson,
+  [AllowNull()][string]$EventFile,
   [AllowNull()][string]$Provider = "auto",
   [AllowNull()][string]$LogPath
 )
@@ -171,6 +172,27 @@ try {
 $defaultTitle = "AI Chat"
 $defaultSubtitle = "Turn complete"
 $defaultMessage = "Check your CLI/IDE for details."
+
+$stdinEvent = $null
+try {
+  if (
+    [string]::IsNullOrWhiteSpace($EventJson) -and
+    [string]::IsNullOrWhiteSpace($EventFile) -and
+    [string]::IsNullOrWhiteSpace($Title) -and
+    [Console]::IsInputRedirected
+  ) {
+    $stdinEvent = [Console]::In.ReadToEnd()
+  }
+} catch {}
+
+if ([string]::IsNullOrWhiteSpace($EventJson) -and -not [string]::IsNullOrWhiteSpace($EventFile)) {
+  try {
+    $EventJson = Get-Content -LiteralPath $EventFile -Raw -ErrorAction Stop
+  } catch {
+    Write-NotifyLog ("eventFile read error: {0}" -f $_.Exception.Message)
+  }
+}
+if ([string]::IsNullOrWhiteSpace($EventJson) -and -not [string]::IsNullOrWhiteSpace($stdinEvent)) { $EventJson = $stdinEvent }
 
 $eventText = $null
 if (-not [string]::IsNullOrWhiteSpace($EventJson)) {

@@ -15,7 +15,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $files = @(
             'scripts/ai-chat-notify.ps1',
-            'scripts/ai-chat-notify-inner.ps1'
+            'scripts/ai-chat-notify-inner.ps1',
+            'install.ps1',
+            'uninstall.ps1'
           )
 
           foreach ($file in $files) {
@@ -29,4 +31,3 @@ jobs:
           }
 
           Write-Host 'OK'
-
