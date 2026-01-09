@@ -14,6 +14,27 @@
 
 ## 快速开始（Windows）
 
+### 可视化配置器（Windows）
+
+用于“傻瓜式”配置弹窗样式与默认文案，并可一键复制用于集成的命令片段（stdin / `-EventFile` / 位置参数）。
+
+#### 免安装运行（推荐先体验）
+
+```bat
+.\ai-chat-notify-config.cmd
+```
+
+#### 安装后运行（如果安装时使用了 `-AddToPath`）
+
+```powershell
+ai-chat-notify-config
+```
+
+配置器支持：
+- 编辑并保存 `config.json`（默认路径见下文）
+- 一键测试 `popup` / `balloon`
+- 复制“集成片段”到剪贴板（用于粘贴到 Codex/Claude Code 等产品的 hook 配置里）
+
 ### 免安装（最简单，适合做 hook）
 在仓库根目录直接运行：
 
@@ -59,6 +80,22 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
   -Title "Codex" -Subtitle "Turn complete" -Message "Check your CLI/IDE for details." `
   -Method "popup" -DurationSeconds 3 -NoSound
 ```
+
+## 配置文件（config.json）
+
+默认路径（自动创建目录）：
+- `%LOCALAPPDATA%\ai-chat-notify\config.json`
+- fallback：`%USERPROFILE%\.ai-chat-notify\config.json`
+
+你也可以显式指定配置路径：
+- 参数：`-ConfigPath "C:\path\to\config.json"`
+- 环境变量：`AI_CHAT_NOTIFY_CONFIG_PATH`（兼容 `CODEX_NOTIFY_CONFIG_PATH`）
+
+配置结构示例：`./examples/config.sample.json`（单配置；暂不支持 profiles）
+
+优先级（从高到低）：
+- 文案（`Title/Subtitle/Message`）：环境变量 > 参数 > 事件 JSON > `config.json` > 内置默认
+- 其他（`method/durationSeconds/noSound`）：参数 > 环境变量 > 事件 JSON > `config.json` > 内置默认
 
 ## 事件 JSON 输入
 
@@ -110,7 +147,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 
 ## 环境变量
 
-用于全局覆盖/注入配置（优先级：参数 > 环境变量 > 事件 JSON > 默认值）：
+用于全局覆盖/注入配置：
 
 - `AI_CHAT_NOTIFY_TITLE`
 - `AI_CHAT_NOTIFY_SUBTITLE`
@@ -119,6 +156,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 - `AI_CHAT_NOTIFY_DURATION_SECONDS`
 - `AI_CHAT_NOTIFY_NOSOUND`（`1/0`）
 - `AI_CHAT_NOTIFY_LOG`（写入简单调试日志）
+- `AI_CHAT_NOTIFY_CONFIG_PATH`（配置文件路径）
 
 兼容读取 `CODEX_NOTIFY_*` 同名变量（便于从现有 Codex 配置迁移）。
 

@@ -16,6 +16,7 @@ jobs:
           $files = @(
             'scripts/ai-chat-notify.ps1',
             'scripts/ai-chat-notify-inner.ps1',
+            'configurator.ps1',
             'install.ps1',
             'uninstall.ps1'
           )

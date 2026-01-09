@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "defaults": {
+    "provider": "codex",
+    "title": "Codex",
+    "subtitle": "任务已完成",
+    "message": "请到 CLI/IDE 中查看详细信息",
+    "method": "popup",
+    "durationSeconds": 2,
+    "noSound": true
+  },
+  "popup": {
+    "width": 360,
+    "minHeight": 200,
+    "fontFamily": "Microsoft YaHei UI",
+    "titleFontSize": 20,
+    "subtitleFontSize": 18,
+    "messageFontSize": 14,
+    "titleColor": "#111827",
+    "subtitleColor": "#111827",
+    "messageColor": "#374151",
+    "backgroundColor": "#FFFFFF",
+    "borderColor": "#E6E8EB",
+    "dividerColor": "#EEF0F2",
+    "accentColor": "#2B71D8",
+    "iconText": "i",
+    "iconTextColor": "#FFFFFF",
+    "iconBackgroundColor": "#2B71D8",
+    "okText": "确定"
+  }
+}
+

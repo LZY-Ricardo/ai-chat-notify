@@ -11,7 +11,8 @@ param(
   [AllowNull()][string]$EventJson,
   [AllowNull()][string]$EventFile,
   [AllowNull()][string]$Provider = "auto",
-  [AllowNull()][string]$LogPath
+  [AllowNull()][string]$LogPath,
+  [AllowNull()][string]$ConfigPath
 )
 
 function Get-NotifyEnvValue {
@@ -26,6 +27,35 @@ function Get-NotifyEnvValue {
     if (-not [string]::IsNullOrWhiteSpace($v)) { return $v }
   }
   return $null
+}
+
+function Get-DefaultConfigPath {
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+      return (Join-Path $env:LOCALAPPDATA "ai-chat-notify\\config.json")
+    }
+  } catch {}
+
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+      return (Join-Path $env:USERPROFILE ".ai-chat-notify\\config.json")
+    }
+  } catch {}
+
+  return $null
+}
+
+function Load-NotifyConfig {
+  param([AllowNull()][string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+  if (-not (Test-Path -LiteralPath $Path)) { return $null }
+  try {
+    $raw = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    return ($raw | ConvertFrom-Json -ErrorAction Stop)
+  } catch {
+    Write-NotifyLog ("config read error: {0}" -f $_.Exception.Message)
+    return $null
+  }
 }
 
 function Write-NotifyLog {
@@ -173,6 +203,28 @@ $defaultTitle = "AI Chat"
 $defaultSubtitle = "Turn complete"
 $defaultMessage = "Check your CLI/IDE for details."
 
+$configPathValue = $ConfigPath
+if ([string]::IsNullOrWhiteSpace($configPathValue)) {
+  $configPathValue = Get-NotifyEnvValue "AI_CHAT_NOTIFY_CONFIG_PATH" @("CODEX_NOTIFY_CONFIG_PATH")
+}
+if ([string]::IsNullOrWhiteSpace($configPathValue)) {
+  $configPathValue = Get-DefaultConfigPath
+}
+
+$notifyConfig = Load-NotifyConfig $configPathValue
+$configDefaults = if ($null -eq $notifyConfig) { $null } else { (Get-ObjectProperty $notifyConfig @("defaults")) }
+$configTitle = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("title")) }
+$configSubtitle = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("subtitle")) }
+$configMessage = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("message")) }
+$configMethod = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("method")) }
+$configDurationSeconds = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("durationSeconds", "duration_seconds")) }
+$configNoSound = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("noSound", "nosound", "no_sound", "silent")) }
+$configProvider = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("provider")) }
+
+if (-not [string]::IsNullOrWhiteSpace($configTitle)) { $defaultTitle = $configTitle.ToString() }
+if (-not [string]::IsNullOrWhiteSpace($configSubtitle)) { $defaultSubtitle = $configSubtitle.ToString() }
+if (-not [string]::IsNullOrWhiteSpace($configMessage)) { $defaultMessage = $configMessage.ToString() }
+
 $stdinEvent = $null
 try {
   if (
@@ -205,6 +257,13 @@ $event = TryParse-JsonLikeString $eventText
 $titleWasEvent = ($null -ne $event -and $eventText -eq $Title)
 
 $providerValue = Resolve-Provider $Provider $event
+if (
+  $Provider -eq "auto" -and
+  $providerValue -eq "generic" -and
+  -not [string]::IsNullOrWhiteSpace($configProvider)
+) {
+  $providerValue = Resolve-Provider $configProvider $null
+}
 $eventType = if ($null -eq $event) { $null } else { (Get-ObjectProperty $event @("type", "eventType", "event_type")) }
 
 if ($null -ne $event) {
@@ -225,6 +284,8 @@ if ($null -ne $event) {
   if ($titleWasEvent -or [string]::IsNullOrWhiteSpace($Title)) {
     if (-not [string]::IsNullOrWhiteSpace($eventTitle)) {
       $Title = $eventTitle.ToString()
+    } elseif (-not [string]::IsNullOrWhiteSpace($configTitle)) {
+      $Title = $configTitle.ToString()
     } elseif ($providerValue -eq "codex") {
       $Title = "Codex"
     } elseif ($providerValue -eq "claude-code") {
@@ -253,9 +314,18 @@ if ($null -ne $event) {
 
   Write-NotifyLog ("parsed event provider={0} type={1}" -f $providerValue, $eventType)
 } else {
-  if ([string]::IsNullOrWhiteSpace($Title)) { $Title = Get-NotifyEnvValue "AI_CHAT_NOTIFY_TITLE" @("CODEX_NOTIFY_TITLE") }
-  if ([string]::IsNullOrWhiteSpace($Subtitle)) { $Subtitle = Get-NotifyEnvValue "AI_CHAT_NOTIFY_SUBTITLE" @("CODEX_NOTIFY_SUBTITLE") }
-  if ([string]::IsNullOrWhiteSpace($Message)) { $Message = Get-NotifyEnvValue "AI_CHAT_NOTIFY_MESSAGE" @("CODEX_NOTIFY_MESSAGE") }
+  if ([string]::IsNullOrWhiteSpace($Title)) {
+    $Title = Get-NotifyEnvValue "AI_CHAT_NOTIFY_TITLE" @("CODEX_NOTIFY_TITLE")
+    if ([string]::IsNullOrWhiteSpace($Title) -and -not [string]::IsNullOrWhiteSpace($configTitle)) { $Title = $configTitle.ToString() }
+  }
+  if ([string]::IsNullOrWhiteSpace($Subtitle)) {
+    $Subtitle = Get-NotifyEnvValue "AI_CHAT_NOTIFY_SUBTITLE" @("CODEX_NOTIFY_SUBTITLE")
+    if ([string]::IsNullOrWhiteSpace($Subtitle) -and -not [string]::IsNullOrWhiteSpace($configSubtitle)) { $Subtitle = $configSubtitle.ToString() }
+  }
+  if ([string]::IsNullOrWhiteSpace($Message)) {
+    $Message = Get-NotifyEnvValue "AI_CHAT_NOTIFY_MESSAGE" @("CODEX_NOTIFY_MESSAGE")
+    if ([string]::IsNullOrWhiteSpace($Message) -and -not [string]::IsNullOrWhiteSpace($configMessage)) { $Message = $configMessage.ToString() }
+  }
 }
 
 $titleOverride = Get-NotifyEnvValue "AI_CHAT_NOTIFY_TITLE" @("CODEX_NOTIFY_TITLE")
@@ -279,6 +349,9 @@ if ([string]::IsNullOrWhiteSpace($methodValue) -and $null -ne $event) {
   $eventMethod = Get-ObjectProperty $event @("method", "notifyMethod", "notify_method")
   if (-not [string]::IsNullOrWhiteSpace($eventMethod)) { $methodValue = $eventMethod.ToString() }
 }
+if ([string]::IsNullOrWhiteSpace($methodValue) -and -not [string]::IsNullOrWhiteSpace($configMethod)) {
+  $methodValue = $configMethod.ToString()
+}
 if ([string]::IsNullOrWhiteSpace($methodValue)) {
   if (Test-ToastNotificationsEnabled) { $methodValue = "balloon" } else { $methodValue = "popup" }
 }
@@ -293,6 +366,9 @@ if ($PSBoundParameters.ContainsKey("DurationSeconds")) {
   if ([string]::IsNullOrWhiteSpace($durationRaw) -and $null -ne $event) {
     $eventDuration = Get-ObjectProperty $event @("durationSeconds", "duration_seconds", "duration", "seconds")
     if ($null -ne $eventDuration) { $durationRaw = $eventDuration }
+  }
+  if ([string]::IsNullOrWhiteSpace($durationRaw) -and $null -ne $configDurationSeconds) {
+    $durationRaw = $configDurationSeconds
   }
   if ([string]::IsNullOrWhiteSpace($durationRaw)) {
     $durationRaw = if ($methodValue -eq "popup") { 0 } else { 5 }
@@ -313,6 +389,8 @@ if ($PSBoundParameters.ContainsKey("NoSound")) {
   } elseif ($null -ne $event) {
     $eventNoSound = Get-ObjectProperty $event @("noSound", "nosound", "no_sound", "silent")
     $noSoundValue = Test-Truthy $eventNoSound
+  } elseif ($null -ne $configNoSound) {
+    $noSoundValue = Test-Truthy $configNoSound
   }
 }
 
@@ -325,6 +403,7 @@ $env:AI_CHAT_NOTIFY_METHOD = $methodValue
 $env:AI_CHAT_NOTIFY_DURATION_SECONDS = $durationValue
 $env:AI_CHAT_NOTIFY_NOSOUND = if ($noSoundValue) { "1" } else { "0" }
 if (-not [string]::IsNullOrWhiteSpace($script:NotifyLogPath)) { $env:AI_CHAT_NOTIFY_LOG = $script:NotifyLogPath }
+if (-not [string]::IsNullOrWhiteSpace($configPathValue)) { $env:AI_CHAT_NOTIFY_CONFIG_PATH = $configPathValue }
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $innerPath = Join-Path $scriptRoot "ai-chat-notify-inner.ps1"

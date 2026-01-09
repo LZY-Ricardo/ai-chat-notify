@@ -14,6 +14,45 @@ function Get-NotifyEnvValue {
   return $null
 }
 
+$configPath = Get-NotifyEnvValue "AI_CHAT_NOTIFY_CONFIG_PATH" @("CODEX_NOTIFY_CONFIG_PATH")
+if ([string]::IsNullOrWhiteSpace($configPath)) {
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+      $configPath = (Join-Path $env:LOCALAPPDATA "ai-chat-notify\\config.json")
+    } elseif (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+      $configPath = (Join-Path $env:USERPROFILE ".ai-chat-notify\\config.json")
+    }
+  } catch {}
+}
+
+function Get-ObjectProperty {
+  param(
+    [Parameter(Mandatory = $true)][object]$Object,
+    [Parameter(Mandatory = $true)][string[]]$Names
+  )
+  foreach ($name in $Names) {
+    if ([string]::IsNullOrWhiteSpace($name)) { continue }
+    try {
+      $p = $Object.PSObject.Properties[$name]
+      if ($null -ne $p) { return $p.Value }
+    } catch {}
+  }
+  return $null
+}
+
+function Load-NotifyConfig {
+  param([AllowNull()][string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+  if (-not (Test-Path -LiteralPath $Path)) { return $null }
+  try {
+    $raw = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    return ($raw | ConvertFrom-Json -ErrorAction Stop)
+  } catch {
+    Log ("config read error: {0}" -f $_.Exception.Message)
+    return $null
+  }
+}
+
 $title = Get-NotifyEnvValue "AI_CHAT_NOTIFY_TITLE" @("CODEX_NOTIFY_TITLE")
 $subtitle = Get-NotifyEnvValue "AI_CHAT_NOTIFY_SUBTITLE" @("CODEX_NOTIFY_SUBTITLE")
 $message = Get-NotifyEnvValue "AI_CHAT_NOTIFY_MESSAGE" @("CODEX_NOTIFY_MESSAGE")
@@ -29,6 +68,34 @@ function Log {
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
     Add-Content -Path $logPath -Encoding UTF8 -Value "[$ts] ai-chat-notify(inner) $Text"
   } catch {}
+}
+
+$notifyConfig = Load-NotifyConfig $configPath
+$popupConfig = if ($null -eq $notifyConfig) { $null } else { (Get-ObjectProperty $notifyConfig @("popup")) }
+
+function ConvertTo-Color {
+  param([AllowNull()][string]$Hex)
+  if ([string]::IsNullOrWhiteSpace($Hex)) { return $null }
+  $s = $Hex.Trim()
+  if ($s.StartsWith("#")) { $s = $s.Substring(1) }
+  if ($s.Length -eq 6) { $s = "FF$s" }
+  if ($s.Length -ne 8) { return $null }
+  try {
+    $a = [Convert]::ToByte($s.Substring(0, 2), 16)
+    $r = [Convert]::ToByte($s.Substring(2, 2), 16)
+    $g = [Convert]::ToByte($s.Substring(4, 2), 16)
+    $b = [Convert]::ToByte($s.Substring(6, 2), 16)
+    return [System.Windows.Media.Color]::FromArgb($a, $r, $g, $b)
+  } catch {
+    return $null
+  }
+}
+
+function New-SolidBrush {
+  param([AllowNull()][string]$Hex)
+  $c = ConvertTo-Color $Hex
+  if ($null -eq $c) { return $null }
+  return (New-Object System.Windows.Media.SolidColorBrush -ArgumentList $c)
 }
 
 $body = if ([string]::IsNullOrWhiteSpace($subtitle)) { $message } else { "$subtitle`r`n$message" }
@@ -132,7 +199,7 @@ try {
             VerticalAlignment="Center" />
         </Button>
       </Grid>
-      <Border Grid.Row="0" BorderBrush="#EEF0F2" BorderThickness="0,0,0,1" VerticalAlignment="Bottom" />
+      <Border x:Name="HeaderDivider" Grid.Row="0" BorderBrush="#EEF0F2" BorderThickness="0,0,0,1" VerticalAlignment="Bottom" />
 
       <Grid Grid.Row="1" Margin="18,16,18,0">
         <Grid.ColumnDefinitions>
@@ -141,12 +208,13 @@ try {
         </Grid.ColumnDefinitions>
 
         <Grid Grid.Column="0" Width="56" Height="56" HorizontalAlignment="Left" VerticalAlignment="Top">
-          <Ellipse Fill="#2B71D8">
+          <Ellipse x:Name="IconEllipse" Fill="#2B71D8">
             <Ellipse.Effect>
               <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.25" Color="#000000" />
             </Ellipse.Effect>
           </Ellipse>
           <TextBlock
+            x:Name="IconText"
             Text="i"
             FontFamily="Segoe UI"
             FontSize="36"
@@ -176,7 +244,7 @@ try {
         </StackPanel>
       </Grid>
 
-      <Border Grid.Row="2" BorderBrush="#EEF0F2" BorderThickness="0,1,0,0" VerticalAlignment="Top" />
+      <Border x:Name="FooterDivider" Grid.Row="2" BorderBrush="#EEF0F2" BorderThickness="0,1,0,0" VerticalAlignment="Top" />
       <Grid Grid.Row="2" Background="Transparent">
         <Button
           x:Name="OkButton"
@@ -230,11 +298,126 @@ try {
       $closeButton = $window.FindName("CloseButton")
       $okButton = $window.FindName("OkButton")
       $rootBorder = $window.FindName("RootBorder")
+      $iconEllipse = $window.FindName("IconEllipse")
+      $iconText = $window.FindName("IconText")
+      $headerDivider = $window.FindName("HeaderDivider")
+      $footerDivider = $window.FindName("FooterDivider")
 
       if ($titleText) { $titleText.Text = $title }
       if ($subtitleText) { $subtitleText.Text = $subtitle }
       if ($messageText) {
         $messageText.Text = if ([string]::IsNullOrWhiteSpace($message)) { "" } else { $message }
+      }
+
+      if ($null -ne $popupConfig) {
+        try {
+          $widthValue = Get-ObjectProperty $popupConfig @("width")
+          if ($null -ne $widthValue) {
+            $w = [double]$widthValue
+            if ($w -ge 240 -and $w -le 1200) { $window.Width = $w }
+          }
+        } catch {}
+
+        try {
+          $minHeightValue = Get-ObjectProperty $popupConfig @("minHeight", "min_height")
+          if ($null -ne $minHeightValue) {
+            $h = [double]$minHeightValue
+            if ($h -ge 160 -and $h -le 1200) { $window.MinHeight = $h }
+          }
+        } catch {}
+
+        try {
+          $fontFamilyValue = Get-ObjectProperty $popupConfig @("fontFamily", "font_family")
+          if (-not [string]::IsNullOrWhiteSpace($fontFamilyValue)) {
+            $ff = New-Object System.Windows.Media.FontFamily -ArgumentList $fontFamilyValue.ToString()
+            if ($titleText) { $titleText.FontFamily = $ff }
+            if ($subtitleText) { $subtitleText.FontFamily = $ff }
+            if ($messageText) { $messageText.FontFamily = $ff }
+            if ($okButton) { $okButton.FontFamily = $ff }
+          }
+        } catch {}
+
+        try {
+          $titleSizeValue = Get-ObjectProperty $popupConfig @("titleFontSize", "title_font_size")
+          if ($null -ne $titleSizeValue -and $titleText) { $titleText.FontSize = [double]$titleSizeValue }
+        } catch {}
+
+        try {
+          $subtitleSizeValue = Get-ObjectProperty $popupConfig @("subtitleFontSize", "subtitle_font_size")
+          if ($null -ne $subtitleSizeValue -and $subtitleText) { $subtitleText.FontSize = [double]$subtitleSizeValue }
+        } catch {}
+
+        try {
+          $messageSizeValue = Get-ObjectProperty $popupConfig @("messageFontSize", "message_font_size")
+          if ($null -ne $messageSizeValue -and $messageText) { $messageText.FontSize = [double]$messageSizeValue }
+        } catch {}
+
+        try {
+          $titleColor = Get-ObjectProperty $popupConfig @("titleColor", "title_color")
+          $b = New-SolidBrush $titleColor
+          if ($null -ne $b -and $titleText) { $titleText.Foreground = $b }
+        } catch {}
+
+        try {
+          $subtitleColor = Get-ObjectProperty $popupConfig @("subtitleColor", "subtitle_color")
+          $b = New-SolidBrush $subtitleColor
+          if ($null -ne $b -and $subtitleText) { $subtitleText.Foreground = $b }
+        } catch {}
+
+        try {
+          $messageColor = Get-ObjectProperty $popupConfig @("messageColor", "message_color")
+          $b = New-SolidBrush $messageColor
+          if ($null -ne $b -and $messageText) { $messageText.Foreground = $b }
+        } catch {}
+
+        try {
+          $bg = Get-ObjectProperty $popupConfig @("backgroundColor", "background_color")
+          $b = New-SolidBrush $bg
+          if ($null -ne $b -and $rootBorder) { $rootBorder.Background = $b }
+        } catch {}
+
+        try {
+          $bc = Get-ObjectProperty $popupConfig @("borderColor", "border_color")
+          $b = New-SolidBrush $bc
+          if ($null -ne $b -and $rootBorder) { $rootBorder.BorderBrush = $b }
+        } catch {}
+
+        try {
+          $dc = Get-ObjectProperty $popupConfig @("dividerColor", "divider_color")
+          $b = New-SolidBrush $dc
+          if ($null -ne $b) {
+            if ($headerDivider) { $headerDivider.BorderBrush = $b }
+            if ($footerDivider) { $footerDivider.BorderBrush = $b }
+          }
+        } catch {}
+
+        try {
+          $iconBg = Get-ObjectProperty $popupConfig @("iconBackgroundColor", "icon_background_color", "accentColor", "accent_color")
+          $b = New-SolidBrush $iconBg
+          if ($null -ne $b -and $iconEllipse) { $iconEllipse.Fill = $b }
+        } catch {}
+
+        try {
+          $iconFg = Get-ObjectProperty $popupConfig @("iconTextColor", "icon_text_color")
+          $b = New-SolidBrush $iconFg
+          if ($null -ne $b -and $iconText) { $iconText.Foreground = $b }
+        } catch {}
+
+        try {
+          $iconTextValue = Get-ObjectProperty $popupConfig @("iconText", "icon_text")
+          if (-not [string]::IsNullOrWhiteSpace($iconTextValue) -and $iconText) { $iconText.Text = $iconTextValue.ToString() }
+        } catch {}
+
+        try {
+          $accent = Get-ObjectProperty $popupConfig @("accentColor", "accent_color")
+          $b = New-SolidBrush $accent
+          if ($null -ne $b -and $okButton) { $okButton.Background = $b }
+        } catch {}
+
+        try {
+          $okTextValue = Get-ObjectProperty $popupConfig @("okText", "ok_text")
+          if (-not [string]::IsNullOrWhiteSpace($okTextValue) -and $okButton) { $okButton.Content = $okTextValue.ToString() }
+        } catch {}
       }
 
       if ($rootBorder) {
@@ -250,7 +433,7 @@ try {
       }
 
       if ($okButton) {
-        $okButton.Content = "OK"
+        if ([string]::IsNullOrWhiteSpace($okButton.Content)) { $okButton.Content = "OK" }
         $okButton.IsDefault = $true
         $okButton.Add_Click({ $window.Close() })
       }
@@ -341,4 +524,3 @@ try {
   try { if ($exitTimer) { $exitTimer.Dispose() } } catch {}
   try { if ($notifyIcon) { $notifyIcon.Dispose() } } catch {}
 }
-

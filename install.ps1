@@ -8,7 +8,6 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$sourceDir = Join-Path $repoRoot 'scripts'
 
 if ([string]::IsNullOrWhiteSpace($InstallDir)) {
   if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
@@ -20,15 +19,17 @@ if ([string]::IsNullOrWhiteSpace($InstallDir)) {
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
-$files = @(
-  'ai-chat-notify.ps1',
-  'ai-chat-notify-inner.ps1',
-  'ai-chat-notify.cmd'
+$items = @(
+  @{ Source = 'scripts\ai-chat-notify.ps1'; Destination = 'ai-chat-notify.ps1' },
+  @{ Source = 'scripts\ai-chat-notify-inner.ps1'; Destination = 'ai-chat-notify-inner.ps1' },
+  @{ Source = 'scripts\ai-chat-notify.cmd'; Destination = 'ai-chat-notify.cmd' },
+  @{ Source = 'configurator.ps1'; Destination = 'configurator.ps1' },
+  @{ Source = 'ai-chat-notify-config.cmd'; Destination = 'ai-chat-notify-config.cmd' }
 )
 
-foreach ($file in $files) {
-  $src = Join-Path $sourceDir $file
-  $dst = Join-Path $InstallDir $file
+foreach ($item in $items) {
+  $src = Join-Path $repoRoot $item.Source
+  $dst = Join-Path $InstallDir $item.Destination
 
   if (-not (Test-Path -LiteralPath $src)) {
     throw "Missing source file: $src"
@@ -75,3 +76,5 @@ if ($AddToPath) {
 
 Write-Host 'Test:'
 Write-Host '  ai-chat-notify -Title "Test" -Subtitle "Turn complete" -Message "Hello" -Method popup -DurationSeconds 2 -NoSound'
+Write-Host 'Config:'
+Write-Host '  ai-chat-notify-config'

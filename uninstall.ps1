@@ -17,7 +17,9 @@ if ([string]::IsNullOrWhiteSpace($InstallDir)) {
 $files = @(
   'ai-chat-notify.ps1',
   'ai-chat-notify-inner.ps1',
-  'ai-chat-notify.cmd'
+  'ai-chat-notify.cmd',
+  'configurator.ps1',
+  'ai-chat-notify-config.cmd'
 )
 
 foreach ($file in $files) {
