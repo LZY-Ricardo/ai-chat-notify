@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pwsh-parse:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            'scripts/ai-chat-notify.ps1',
+            'scripts/ai-chat-notify-inner.ps1'
+          )
+
+          foreach ($file in $files) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors -and $errors.Count -gt 0) {
+              Write-Host "Parse errors in $file"
+              $errors | ForEach-Object { Write-Host $_.ToString() }
+              exit 1
+            }
+          }
+
+          Write-Host 'OK'
+

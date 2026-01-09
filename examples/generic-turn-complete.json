@@ -1,0 +1,11 @@
+{
+  "provider": "claude-code",
+  "type": "turn_complete",
+  "title": "Claude Code",
+  "subtitle": "Turn complete: Example notification",
+  "message": "Open your CLI/IDE to review the output.",
+  "method": "popup",
+  "durationSeconds": 3,
+  "noSound": true
+}
+
