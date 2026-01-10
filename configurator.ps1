@@ -161,7 +161,7 @@ $config = if ($null -eq $loaded) { New-DefaultConfig } else { $loaded }
 if ($null -eq $config.defaults) { $config | Add-Member -NotePropertyName defaults -NotePropertyValue @{} }
 if ($null -eq $config.popup) { $config | Add-Member -NotePropertyName popup -NotePropertyValue @{} }
 
-$xaml = @"
+$xaml = @'
 <Window
   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -356,7 +356,7 @@ $xaml = @"
           </StackPanel>
 
           <TextBlock Grid.Row="2" Margin="0,12,0,0" TextWrapping="Wrap"
-            Text="提示：修改 PATH 需要重启终端生效。安装后可直接使用 `ai-chat-notify` 命令。" />
+            Text="提示：修改 PATH 需要重启终端生效。安装后可直接使用 ai-chat-notify 命令。" />
         </Grid>
       </TabItem>
     </TabControl>
@@ -370,7 +370,7 @@ $xaml = @"
     </DockPanel>
   </Grid>
 </Window>
-"@
+'@
 
 $reader = New-Object System.Xml.XmlNodeReader ([xml]$xaml)
 $window = [Windows.Markup.XamlReader]::Load($reader)
