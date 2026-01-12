@@ -18,9 +18,9 @@ $configPath = Get-NotifyEnvValue "AI_CHAT_NOTIFY_CONFIG_PATH" @("CODEX_NOTIFY_CO
 if ([string]::IsNullOrWhiteSpace($configPath)) {
   try {
     if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-      $configPath = (Join-Path $env:LOCALAPPDATA "ai-chat-notify\\config.json")
+      $configPath = (Join-Path (Join-Path $env:LOCALAPPDATA "ai-chat-notify") "config.json")
     } elseif (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
-      $configPath = (Join-Path $env:USERPROFILE ".ai-chat-notify\\config.json")
+      $configPath = (Join-Path (Join-Path $env:USERPROFILE ".ai-chat-notify") "config.json")
     }
   } catch {}
 }

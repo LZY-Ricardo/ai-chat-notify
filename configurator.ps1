@@ -39,12 +39,12 @@ function Ensure-STA {
 function Get-DefaultConfigPath {
   try {
     if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-      return (Join-Path $env:LOCALAPPDATA "ai-chat-notify\\config.json")
+      return (Join-Path (Join-Path $env:LOCALAPPDATA "ai-chat-notify") "config.json")
     }
   } catch {}
   try {
     if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
-      return (Join-Path $env:USERPROFILE ".ai-chat-notify\\config.json")
+      return (Join-Path (Join-Path $env:USERPROFILE ".ai-chat-notify") "config.json")
     }
   } catch {}
   return $null
@@ -137,6 +137,170 @@ function TryParse-Double {
   $v = 0.0
   if ([double]::TryParse($Text.Trim(), [ref]$v)) { return $v }
   return $DefaultValue
+}
+
+function Get-DefaultCodexConfigPath {
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+      return (Join-Path (Join-Path $env:USERPROFILE ".codex") "config.toml")
+    }
+  } catch {}
+  return $null
+}
+
+function Normalize-WindowsPath {
+  param([AllowNull()][string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
+  $p = $Path
+  if ($p.StartsWith("\\\\")) {
+    return ("\\\\" + ($p.Substring(2) -replace '\\\\+', '\\'))
+  }
+  return ($p -replace '\\\\+', '\\')
+}
+
+function Convert-ToForwardSlashPath {
+  param([AllowNull()][string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+  return ($Path -replace '\\', '/')
+}
+
+function Quote-TomlString {
+  param([AllowNull()][string]$Text)
+  if ($null -eq $Text) { $Text = '' }
+  $escaped = $Text.Replace('\', '\\').Replace('"', '\"')
+  return '"' + $escaped + '"'
+}
+
+function Resolve-AiChatNotifyCmdPath {
+  $candidates = @()
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+      $candidates += (Join-Path (Join-Path (Join-Path $env:LOCALAPPDATA "ai-chat-notify") "bin") "ai-chat-notify.cmd")
+    }
+  } catch {}
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+      $candidates += (Join-Path (Join-Path (Join-Path $env:USERPROFILE ".ai-chat-notify") "bin") "ai-chat-notify.cmd")
+    }
+  } catch {}
+
+  $candidates += @(
+    (Join-Path $repoRoot "ai-chat-notify.cmd"),
+    (Join-Path (Join-Path $repoRoot "scripts") "ai-chat-notify.cmd")
+  )
+
+  foreach ($candidate in $candidates) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    if (Test-Path -LiteralPath $candidate) { return $candidate }
+  }
+
+  return ($candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+}
+
+function Resolve-AiChatNotifyPs1Path {
+  $candidates = @()
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+      $candidates += (Join-Path (Join-Path (Join-Path $env:LOCALAPPDATA "ai-chat-notify") "bin") "ai-chat-notify.ps1")
+    }
+  } catch {}
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+      $candidates += (Join-Path (Join-Path (Join-Path $env:USERPROFILE ".ai-chat-notify") "bin") "ai-chat-notify.ps1")
+    }
+  } catch {}
+
+  $candidates += @(
+    (Join-Path (Join-Path $repoRoot "scripts") "ai-chat-notify.ps1"),
+    (Join-Path $repoRoot "ai-chat-notify.ps1")
+  )
+
+  foreach ($candidate in $candidates) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    if (Test-Path -LiteralPath $candidate) { return $candidate }
+  }
+
+  return ($candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+}
+
+function Build-CodexNotifyLine {
+  param(
+    [Parameter(Mandatory = $true)][string]$NotifyPs1Path,
+    [AllowNull()][string]$ConfigPathToUse
+  )
+
+  $ps1 = Convert-ToForwardSlashPath $NotifyPs1Path
+  $cfg = Convert-ToForwardSlashPath $ConfigPathToUse
+
+  $argv = New-Object System.Collections.Generic.List[string]
+  $argv.Add("powershell.exe")
+  $argv.Add("-NoProfile")
+  $argv.Add("-ExecutionPolicy")
+  $argv.Add("Bypass")
+  $argv.Add("-File")
+  $argv.Add($ps1)
+  if (-not [string]::IsNullOrWhiteSpace($cfg)) {
+    $argv.Add("-ConfigPath")
+    $argv.Add($cfg)
+  }
+  # Codex 会在最后追加 JSON 参数；这里预放一个 -EventJson 以便 PowerShell 正确绑定值（避免 cmd.exe 的二次解析导致 JSON 丢失/拆分）。
+  $argv.Add("-EventJson")
+
+  $quoted = @()
+  foreach ($a in $argv) { $quoted += (Quote-TomlString $a) }
+  return ('notify = [' + ($quoted -join ", ") + ']')
+}
+
+function Upsert-NotifyInTomlText {
+  param(
+    [Parameter(Mandatory = $true)][string]$TomlText,
+    [Parameter(Mandatory = $true)][string]$NotifyLine
+  )
+
+  $newline = if ($TomlText -match "`r`n") { "`r`n" } else { "`n" }
+  $lines = $TomlText -split "`r?`n", -1
+
+  $start = -1
+  $indent = ""
+  for ($i = 0; $i -lt $lines.Count; $i++) {
+    if ($lines[$i] -match '^(\s*)notify\s*=') {
+      $start = $i
+      $indent = $Matches[1]
+      break
+    }
+  }
+
+  if ($start -ge 0) {
+    $end = $start
+    if ($lines[$start] -match '^\s*notify\s*=\s*\[' -and $lines[$start] -notmatch '\]') {
+      while ($end -lt ($lines.Count - 1)) {
+        if ($lines[$end] -match '\]') { break }
+        $end++
+      }
+    }
+
+    $before = if ($start -gt 0) { $lines[0..($start - 1)] } else { @() }
+    $after = if ($end -lt ($lines.Count - 1)) { $lines[($end + 1)..($lines.Count - 1)] } else { @() }
+    return (@($before + @($indent + $NotifyLine) + $after) -join $newline)
+  }
+
+  $insertAt = -1
+  for ($i = 0; $i -lt $lines.Count; $i++) {
+    if ($lines[$i] -match '^\s*\[') { $insertAt = $i; break }
+  }
+  if ($insertAt -lt 0) { $insertAt = $lines.Count }
+
+  $before = if ($insertAt -gt 0) { $lines[0..($insertAt - 1)] } else { @() }
+  $after = if ($insertAt -lt $lines.Count) { $lines[$insertAt..($lines.Count - 1)] } else { @() }
+
+  $newLines = @()
+  $newLines += $before
+  if ($before.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($before[-1])) { $newLines += "" }
+  $newLines += $NotifyLine
+  if ($after.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($after[0])) { $newLines += "" }
+  $newLines += $after
+
+  return ($newLines -join $newline)
 }
 
 Ensure-STA
@@ -341,23 +505,44 @@ $xaml = @'
       </TabItem>
 
       <TabItem Header="安装/卸载">
-        <Grid Margin="12">
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-          </Grid.RowDefinitions>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="12">
+            <TextBlock Text="这里会调用 install.ps1 / uninstall.ps1（会修改用户级 PATH）。" Foreground="#6B7280" />
 
-          <TextBlock Grid.Row="0" Text="这里会调用 install.ps1 / uninstall.ps1（会修改用户级 PATH）。" Foreground="#6B7280" />
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+              <Button x:Name="InstallBtn" Content="安装到 PATH" Padding="12,8" />
+              <Button x:Name="UninstallBtn" Content="从 PATH 卸载" Padding="12,8" Margin="10,0,0,0" />
+            </StackPanel>
 
-          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0">
-            <Button x:Name="InstallBtn" Content="安装到 PATH" Padding="12,8" />
-            <Button x:Name="UninstallBtn" Content="从 PATH 卸载" Padding="12,8" Margin="10,0,0,0" />
+            <TextBlock Margin="0,12,0,0" TextWrapping="Wrap"
+              Text="提示：修改 PATH 需要重启终端生效。安装后可直接使用 ai-chat-notify 命令。" />
+
+            <Separator Margin="0,16,0,12" />
+
+            <TextBlock Text="Codex 集成（自动写入 notify 到 config.toml）" FontWeight="Bold" />
+            <Grid Margin="0,10,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="120" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="config.toml" VerticalAlignment="Center" />
+              <TextBox x:Name="CodexConfigPathBox" Grid.Row="0" Grid.Column="1" Margin="8,2,12,2" />
+              <Button x:Name="BrowseCodexConfigBtn" Grid.Row="0" Grid.Column="2" Content="选择..." Padding="10,6" />
+              <Button x:Name="WriteCodexNotifyBtn" Grid.Row="0" Grid.Column="3" Content="写入 notify" Padding="10,6" Margin="10,0,0,0" />
+
+              <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,8,0,0"
+                Foreground="#6B7280" TextWrapping="Wrap"
+                Text="会创建 .bak 备份，并覆盖/插入 notify 设置；写入后需重启 Codex 生效。" />
+            </Grid>
           </StackPanel>
-
-          <TextBlock Grid.Row="2" Margin="0,12,0,0" TextWrapping="Wrap"
-            Text="提示：修改 PATH 需要重启终端生效。安装后可直接使用 ai-chat-notify 命令。" />
-        </Grid>
+        </ScrollViewer>
       </TabItem>
     </TabControl>
 
@@ -415,6 +600,9 @@ $controls = @{
   CopySnippetBtn      = $window.FindName("CopySnippetBtn")
   InstallBtn          = $window.FindName("InstallBtn")
   UninstallBtn        = $window.FindName("UninstallBtn")
+  CodexConfigPathBox  = $window.FindName("CodexConfigPathBox")
+  BrowseCodexConfigBtn = $window.FindName("BrowseCodexConfigBtn")
+  WriteCodexNotifyBtn = $window.FindName("WriteCodexNotifyBtn")
   SaveBtn             = $window.FindName("SaveBtn")
   CloseBtn            = $window.FindName("CloseBtn")
   StatusText          = $window.FindName("StatusText")
@@ -428,15 +616,24 @@ function Set-Status {
 function Confirm-Dangerous {
   param(
     [Parameter(Mandatory = $true)][string]$Operation,
-    [Parameter(Mandatory = $true)][string]$Impact
+    [Parameter(Mandatory = $true)][string]$Impact,
+    [AllowNull()][string]$Risk
   )
   $msg = "⚠️ 危险操作检测！`n操作类型：$Operation`n影响范围：$Impact`n风险评估：可能修改你的用户级系统配置（PATH）。`n`n请确认是否继续？"
+  if ([string]::IsNullOrWhiteSpace($Risk)) { $Risk = "可能修改你的用户级系统配置。" }
+  $msg = "危险操作检测！`n操作类型：$Operation`n影响范围：$Impact`n风险评估：$Risk`n`n请确认是否继续？"
   $result = [System.Windows.MessageBox]::Show($msg, "确认", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Warning)
   return $result -eq [System.Windows.MessageBoxResult]::Yes
 }
 
 function Apply-ConfigToUI {
-  $controls.ConfigPathBox.Text = $ConfigPath
+  $controls.ConfigPathBox.Text = Normalize-WindowsPath $ConfigPath
+  if ($controls.CodexConfigPathBox) {
+    $defaultCodexPath = Get-DefaultCodexConfigPath
+    if ([string]::IsNullOrWhiteSpace($controls.CodexConfigPathBox.Text) -and -not [string]::IsNullOrWhiteSpace($defaultCodexPath)) {
+      $controls.CodexConfigPathBox.Text = Normalize-WindowsPath $defaultCodexPath
+    }
+  }
 
   $providers = @("auto", "codex", "claude-code", "generic")
   $controls.ProviderBox.ItemsSource = $providers
@@ -518,7 +715,8 @@ function Read-UIToConfig {
 
 function Generate-Snippet {
   $useInstalled = [bool]$controls.CmdInstalledRadio.IsChecked
-  $cmd = if ($useInstalled) { "ai-chat-notify" } else { "& `"$repoRoot\\ai-chat-notify.cmd`"" }
+  $localCmdPath = Join-Path $repoRoot "ai-chat-notify.cmd"
+  $cmd = if ($useInstalled) { "ai-chat-notify" } else { "& `"$localCmdPath`"" }
 
   $method = $controls.MethodBox.SelectedItem
   $duration = (TryParse-Int $controls.DurationBox.Text 2)
@@ -563,7 +761,7 @@ function Invoke-Notify {
   param([Parameter(Mandatory = $true)][ValidateSet("popup", "balloon")][string]$MethodToTest)
 
   $candidates = @(
-    (Join-Path $repoRoot "scripts\\ai-chat-notify.ps1"),
+    (Join-Path (Join-Path $repoRoot "scripts") "ai-chat-notify.ps1"),
     (Join-Path $repoRoot "ai-chat-notify.ps1")
   )
 
@@ -585,10 +783,29 @@ function Invoke-Notify {
     return
   }
 
-  $pathValue = $controls.ConfigPathBox.Text
   try {
-    $null = & $mainScript -ConfigPath $pathValue -Method $MethodToTest -DurationSeconds 2 -NoSound `
-      -Title "预览" -Subtitle "ai-chat-notify" -Message "这是一条预览通知（来自配置器）。"
+    $tempDir = [System.IO.Path]::GetTempPath()
+    if ([string]::IsNullOrWhiteSpace($tempDir)) { $tempDir = $env:TEMP }
+    if ([string]::IsNullOrWhiteSpace($tempDir)) { $tempDir = $repoRoot }
+
+    $previewConfigPath = Join-Path $tempDir "ai-chat-notify-preview-config.json"
+    $previewConfig = Read-UIToConfig
+    Save-JsonFile $previewConfig $previewConfigPath
+
+    $duration = [int](TryParse-Int $controls.DurationBox.Text 2)
+    $noSound = [bool]$controls.NoSoundBox.IsChecked
+
+    $invokeParams = @{
+      ConfigPath      = $previewConfigPath
+      Method          = $MethodToTest
+      Title           = $controls.TitleBox.Text
+      Subtitle        = $controls.SubtitleBox.Text
+      Message         = $controls.MessageBox.Text
+      DurationSeconds = $duration
+    }
+    if ($noSound) { $invokeParams.NoSound = $true }
+
+    $null = & $mainScript @invokeParams
   } catch {
     [System.Windows.MessageBox]::Show($_.Exception.Message, "错误", "OK", "Error") | Out-Null
   }
@@ -608,6 +825,141 @@ function Reload-Config {
   }
   Apply-ConfigToUI
   Refresh-Snippet
+}
+
+function Write-Utf8NoBomTextFile {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Text
+  )
+
+  Ensure-Directory $Path
+  $enc = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($Path, $Text, $enc)
+}
+
+function Backup-File {
+  param([Parameter(Mandatory = $true)][string]$Path)
+  if (-not (Test-Path -LiteralPath $Path)) { return $null }
+  $ts = Get-Date -Format "yyyyMMdd-HHmmss"
+  $backupPath = $Path + ".bak-" + $ts
+  Copy-Item -LiteralPath $Path -Destination $backupPath -Force -ErrorAction Stop
+  return $backupPath
+}
+
+function Test-TomlTextValid {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  $python = Get-Command "python" -ErrorAction SilentlyContinue
+  if ($python) {
+    $out = & $python.Source -c "import sys, pathlib, tomllib; tomllib.loads(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'))" $Path 2>&1 | Out-String
+    return [ordered]@{
+      ok    = ($LASTEXITCODE -eq 0)
+      tool  = "python-tomllib"
+      error = $out.Trim()
+    }
+  }
+
+  $codex = Get-Command "codex" -ErrorAction SilentlyContinue
+  $defaultPath = Get-DefaultCodexConfigPath
+  $canUseCodex = $codex -and -not [string]::IsNullOrWhiteSpace($defaultPath) -and
+    ((Normalize-WindowsPath $defaultPath).ToLowerInvariant() -eq (Normalize-WindowsPath $Path).ToLowerInvariant())
+  if ($canUseCodex) {
+    $out = & $codex.Source --version 2>&1 | Out-String
+    return [ordered]@{
+      ok    = ($LASTEXITCODE -eq 0)
+      tool  = "codex --version"
+      error = $out.Trim()
+    }
+  }
+
+  return [ordered]@{
+    ok    = $true
+    tool  = "skip"
+    error = ""
+  }
+}
+
+function Write-CodexNotify {
+  $tomlPath = if ($controls.CodexConfigPathBox) { $controls.CodexConfigPathBox.Text } else { $null }
+  if ([string]::IsNullOrWhiteSpace($tomlPath)) {
+    $tomlPath = Get-DefaultCodexConfigPath
+    if ($controls.CodexConfigPathBox -and -not [string]::IsNullOrWhiteSpace($tomlPath)) {
+      $controls.CodexConfigPathBox.Text = $tomlPath
+    }
+  }
+  if ([string]::IsNullOrWhiteSpace($tomlPath)) {
+    [System.Windows.MessageBox]::Show("无法确定 Codex 配置文件路径（config.toml）。", "错误", "OK", "Error") | Out-Null
+    return
+  }
+
+  $notifyPs1Path = Resolve-AiChatNotifyPs1Path
+  if ([string]::IsNullOrWhiteSpace($notifyPs1Path) -or -not (Test-Path -LiteralPath $notifyPs1Path)) {
+    $candidates = @(
+      (Resolve-AiChatNotifyPs1Path),
+      (Join-Path (Join-Path $repoRoot "scripts") "ai-chat-notify.ps1")
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+    [System.Windows.MessageBox]::Show(
+      ("找不到 ai-chat-notify.ps1。请先安装或在仓库根目录运行配置器。`r`n已尝试：`r`n" + ($candidates -join "`r`n")),
+      "错误",
+      "OK",
+      "Error"
+    ) | Out-Null
+    return
+  }
+
+  $configPathToUse = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
+  $notifyLine = Build-CodexNotifyLine -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse
+
+  $risk = "可能影响 Codex 的通知触发行为；将创建备份并覆盖 notify 设置。"
+  if (-not (Confirm-Dangerous -Operation "修改 Codex 配置（写入 notify）" -Impact $tomlPath -Risk $risk)) { return }
+
+  try {
+    $backup = $null
+    if (Test-Path -LiteralPath $tomlPath) {
+      $backup = Backup-File $tomlPath
+    } else {
+      Ensure-Directory $tomlPath
+    }
+
+    $original = if (Test-Path -LiteralPath $tomlPath) {
+      Get-Content -LiteralPath $tomlPath -Raw -Encoding UTF8 -ErrorAction Stop
+    } else {
+      ""
+    }
+
+    $updated = Upsert-NotifyInTomlText -TomlText $original -NotifyLine $notifyLine
+    Write-Utf8NoBomTextFile -Path $tomlPath -Text $updated
+
+    $validation = Test-TomlTextValid -Path $tomlPath
+    if (-not [bool]$validation.ok) {
+      if (-not [string]::IsNullOrWhiteSpace($backup) -and (Test-Path -LiteralPath $backup)) {
+        Copy-Item -LiteralPath $backup -Destination $tomlPath -Force -ErrorAction Stop
+      }
+      $detail = if (-not [string]::IsNullOrWhiteSpace($validation.error)) { "`r`n`r`n$($validation.error)" } else { "" }
+      [System.Windows.MessageBox]::Show(
+        "写入后检测到 config.toml 无法被解析，已自动回滚到备份文件。`r`n`r`n使用的校验工具：$($validation.tool)$detail",
+        "写入失败（已回滚）",
+        "OK",
+        "Error"
+      ) | Out-Null
+      if (-not [string]::IsNullOrWhiteSpace($backup)) {
+        Set-Status "写入失败：TOML 校验未通过，已回滚备份：$backup"
+      } else {
+        Set-Status "写入失败：TOML 校验未通过（无备份可回滚）"
+      }
+      return
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($backup)) {
+      Set-Status "已写入 notify（已备份：$backup）。重启 Codex 生效。"
+    } else {
+      Set-Status "已写入 notify。重启 Codex 生效。"
+    }
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "写入失败", "OK", "Error") | Out-Null
+  }
 }
 
 Apply-ConfigToUI
@@ -686,6 +1038,36 @@ $controls.UninstallBtn.Add_Click({
     [System.Windows.MessageBox]::Show($_.Exception.Message, "卸载失败", "OK", "Error") | Out-Null
   }
 })
+
+if ($controls.BrowseCodexConfigBtn) {
+  $controls.BrowseCodexConfigBtn.Add_Click({
+    try {
+      $dlg = New-Object Microsoft.Win32.OpenFileDialog
+      $dlg.Title = "选择 Codex 配置文件（config.toml）"
+      $dlg.Filter = "TOML (*.toml)|*.toml|All files (*.*)|*.*"
+      $dlg.FileName = "config.toml"
+
+      $defaultPath = Get-DefaultCodexConfigPath
+      if (-not [string]::IsNullOrWhiteSpace($defaultPath)) {
+        $dir = Split-Path -Parent $defaultPath
+        if (-not [string]::IsNullOrWhiteSpace($dir) -and (Test-Path -LiteralPath $dir)) {
+          $dlg.InitialDirectory = $dir
+        }
+      }
+
+      $result = $dlg.ShowDialog()
+      if ($result -eq $true -and $controls.CodexConfigPathBox) {
+        $controls.CodexConfigPathBox.Text = $dlg.FileName
+      }
+    } catch {
+      [System.Windows.MessageBox]::Show($_.Exception.Message, "选择失败", "OK", "Error") | Out-Null
+    }
+  })
+}
+
+if ($controls.WriteCodexNotifyBtn) {
+  $controls.WriteCodexNotifyBtn.Add_Click({ Write-CodexNotify })
+}
 
 Set-Status "就绪"
 [void]$window.ShowDialog()

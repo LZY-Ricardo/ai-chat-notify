@@ -34,6 +34,7 @@ ai-chat-notify-config
 - 编辑并保存 `config.json`（默认路径见下文）
 - 一键测试 `popup` / `balloon`
 - 复制“集成片段”到剪贴板（用于粘贴到 Codex/Claude Code 等产品的 hook 配置里）
+- 一键写入 Codex `config.toml` 的 `notify`（会创建备份；重启 Codex 生效）
 
 ### 免安装（最简单，适合做 hook）
 在仓库根目录直接运行：

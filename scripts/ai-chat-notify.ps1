@@ -32,13 +32,13 @@ function Get-NotifyEnvValue {
 function Get-DefaultConfigPath {
   try {
     if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-      return (Join-Path $env:LOCALAPPDATA "ai-chat-notify\\config.json")
+      return (Join-Path (Join-Path $env:LOCALAPPDATA "ai-chat-notify") "config.json")
     }
   } catch {}
 
   try {
     if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
-      return (Join-Path $env:USERPROFILE ".ai-chat-notify\\config.json")
+      return (Join-Path (Join-Path $env:USERPROFILE ".ai-chat-notify") "config.json")
     }
   } catch {}
 
