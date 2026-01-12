@@ -226,11 +226,13 @@ function Resolve-AiChatNotifyPs1Path {
 function Build-CodexNotifyLine {
   param(
     [Parameter(Mandatory = $true)][string]$NotifyPs1Path,
-    [AllowNull()][string]$ConfigPathToUse
+    [AllowNull()][string]$ConfigPathToUse,
+    [AllowNull()][string]$LogPathToUse
   )
 
   $ps1 = Convert-ToForwardSlashPath $NotifyPs1Path
   $cfg = Convert-ToForwardSlashPath $ConfigPathToUse
+  $log = Convert-ToForwardSlashPath $LogPathToUse
 
   $argv = New-Object System.Collections.Generic.List[string]
   $argv.Add("powershell.exe")
@@ -242,6 +244,10 @@ function Build-CodexNotifyLine {
   if (-not [string]::IsNullOrWhiteSpace($cfg)) {
     $argv.Add("-ConfigPath")
     $argv.Add($cfg)
+  }
+  if (-not [string]::IsNullOrWhiteSpace($log)) {
+    $argv.Add("-LogPath")
+    $argv.Add($log)
   }
   # Codex 会在最后追加 JSON 参数；这里预放一个 -EventJson 以便 PowerShell 正确绑定值（避免 cmd.exe 的二次解析导致 JSON 丢失/拆分）。
   $argv.Add("-EventJson")
@@ -491,16 +497,16 @@ $xaml = @'
 
           <GroupBox Grid.Row="0" Header="调用位置" Padding="10">
             <StackPanel Orientation="Horizontal">
-              <RadioButton x:Name="CmdInstalledRadio" Content="已安装（PATH）" IsChecked="True" Margin="0,0,18,0" />
+              <RadioButton x:Name="CmdInstalledRadio" Content="已安装（默认安装目录）" IsChecked="True" Margin="0,0,18,0" />
               <RadioButton x:Name="CmdLocalRadio" Content="本地仓库路径" />
             </StackPanel>
           </GroupBox>
 
           <GroupBox Grid.Row="1" Header="事件输入方式" Padding="10" Margin="0,10,0,0">
             <StackPanel Orientation="Horizontal">
-              <RadioButton x:Name="InputStdinRadio" Content="stdin（推荐）" IsChecked="True" Margin="0,0,18,0" />
+              <RadioButton x:Name="InputStdinRadio" Content="argv（推荐：末尾追加 JSON）" IsChecked="True" Margin="0,0,18,0" />
               <RadioButton x:Name="InputEventFileRadio" Content="-EventFile" Margin="0,0,18,0" />
-              <RadioButton x:Name="InputPositionalRadio" Content="位置参数 JSON" />
+              <RadioButton x:Name="InputPositionalRadio" Content="EventJson（从文件读取）" />
             </StackPanel>
           </GroupBox>
 
@@ -548,6 +554,7 @@ $xaml = @'
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
               </Grid.RowDefinitions>
 
               <TextBlock Grid.Row="0" Grid.Column="0" Text="config.toml" VerticalAlignment="Center" />
@@ -567,7 +574,21 @@ $xaml = @'
                   ToolTip="先保存 config.json，再写入（或覆盖）config.toml 的 notify，并创建 .bak 备份" />
               </StackPanel>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,8,0,0"
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="调试日志" VerticalAlignment="Center" Margin="0,6,0,0" />
+              <Grid Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <CheckBox x:Name="EnableCodexLogBox" Grid.Column="0" Content="启用（-LogPath）" VerticalAlignment="Center" />
+                <TextBox x:Name="CodexLogPathBox" Grid.Column="1" Margin="8,0,8,0"
+                  ToolTip="日志文件路径；写入 notify 时会带上 -LogPath" />
+                <Button x:Name="OpenCodexLogBtn" Grid.Column="2" Content="打开日志" Padding="10,6"
+                  ToolTip="用记事本打开日志文件（不存在会自动创建）" />
+              </Grid>
+
+              <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,8,0,0"
                 Foreground="#6B7280" TextWrapping="Wrap"
                 Text="会创建 .bak 备份，并覆盖/插入 notify 设置；写入后需重启 Codex 生效。" />
             </Grid>
@@ -637,6 +658,9 @@ $controls = @{
   BrowseCodexConfigBtn = $window.FindName("BrowseCodexConfigBtn")
   OpenCodexConfigBtn  = $window.FindName("OpenCodexConfigBtn")
   CheckCodexNotifyBtn = $window.FindName("CheckCodexNotifyBtn")
+  EnableCodexLogBox   = $window.FindName("EnableCodexLogBox")
+  CodexLogPathBox     = $window.FindName("CodexLogPathBox")
+  OpenCodexLogBtn     = $window.FindName("OpenCodexLogBtn")
   CopyCodexNotifyBtn  = $window.FindName("CopyCodexNotifyBtn")
   RestoreCodexBackupBtn = $window.FindName("RestoreCodexBackupBtn")
   WriteCodexNotifyBtn = $window.FindName("WriteCodexNotifyBtn")
@@ -670,6 +694,68 @@ function Get-DefaultInstallDir {
     }
   } catch {}
   return (Join-Path (Join-Path $env:USERPROFILE ".ai-chat-notify") "bin")
+}
+
+function Get-DefaultNotifyLogPath {
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+      return (Join-Path (Join-Path $env:LOCALAPPDATA "ai-chat-notify") "ai-chat-notify.log")
+    }
+  } catch {}
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+      return (Join-Path (Join-Path $env:USERPROFILE ".ai-chat-notify") "ai-chat-notify.log")
+    }
+  } catch {}
+  return $null
+}
+
+function Get-NotifyLogPathFromUI {
+  if (-not $controls.EnableCodexLogBox) { return $null }
+  if (-not [bool]$controls.EnableCodexLogBox.IsChecked) { return $null }
+
+  $logPath = if ($controls.CodexLogPathBox) { $controls.CodexLogPathBox.Text } else { $null }
+  if ([string]::IsNullOrWhiteSpace($logPath)) { $logPath = Get-DefaultNotifyLogPath }
+  if (-not [string]::IsNullOrWhiteSpace($logPath)) { $logPath = Normalize-WindowsPath $logPath }
+  return $logPath
+}
+
+function Open-NotifyLog {
+  $logPath = if ($controls.CodexLogPathBox) { $controls.CodexLogPathBox.Text } else { $null }
+  if ([string]::IsNullOrWhiteSpace($logPath)) { $logPath = Get-DefaultNotifyLogPath }
+  if ([string]::IsNullOrWhiteSpace($logPath)) {
+    [System.Windows.MessageBox]::Show("无法确定日志路径。", "错误", "OK", "Error") | Out-Null
+    return
+  }
+
+  $logPath = Normalize-WindowsPath $logPath
+  try {
+    Ensure-Directory $logPath
+    if (-not (Test-Path -LiteralPath $logPath)) {
+      New-Item -ItemType File -Force -Path $logPath | Out-Null
+    }
+    Start-Process -FilePath "notepad.exe" -ArgumentList @($logPath) | Out-Null
+    Set-Status "已打开日志：$logPath"
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "打开失败", "OK", "Error") | Out-Null
+  }
+}
+
+function Update-CodexLogUiState {
+  try {
+    if (-not $controls.EnableCodexLogBox) { return }
+    if (-not $controls.CodexLogPathBox) { return }
+
+    $enabled = [bool]$controls.EnableCodexLogBox.IsChecked
+    $controls.CodexLogPathBox.IsEnabled = $enabled
+
+    if ($enabled -and [string]::IsNullOrWhiteSpace($controls.CodexLogPathBox.Text)) {
+      $defaultLog = Get-DefaultNotifyLogPath
+      if (-not [string]::IsNullOrWhiteSpace($defaultLog)) {
+        $controls.CodexLogPathBox.Text = Normalize-WindowsPath $defaultLog
+      }
+    }
+  } catch {}
 }
 
 function Save-ConfigFromUI {
@@ -764,7 +850,8 @@ function Check-CodexNotify {
     }
 
     $configPathToUse = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
-    $expected = Build-CodexNotifyLine -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse
+    $logPathToUse = Get-NotifyLogPathFromUI
+    $expected = Build-CodexNotifyLine -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse -LogPathToUse $logPathToUse
 
     if ($existing.Trim() -eq $expected.Trim()) {
       Set-Status "notify 已配置并匹配：$tomlPath"
@@ -792,7 +879,8 @@ function Copy-CodexNotifyLine {
     }
 
     $configPathToUse = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
-    $expected = Build-CodexNotifyLine -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse
+    $logPathToUse = Get-NotifyLogPathFromUI
+    $expected = Build-CodexNotifyLine -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse -LogPathToUse $logPathToUse
     Set-Clipboard -Value $expected
     Set-Status "已复制 notify 行到剪贴板。"
   } catch {
@@ -907,6 +995,23 @@ function Apply-ConfigToUI {
   $controls.IconTextBox.Text = if ($null -ne $p.iconText) { $p.iconText.ToString() } else { "i" }
   $controls.IconTextColorBox.Text = if ($null -ne $p.iconTextColor) { $p.iconTextColor.ToString() } else { "#FFFFFF" }
   $controls.IconBgColorBox.Text = if ($null -ne $p.iconBackgroundColor) { $p.iconBackgroundColor.ToString() } else { "#2B71D8" }
+
+  if ($controls.EnableCodexLogBox -and $controls.CodexLogPathBox) {
+    $g = $config.debug
+    $enableLog = $false
+    try {
+      if ($null -ne $g -and $null -ne $g.enableLog) { $enableLog = [bool]$g.enableLog }
+    } catch {}
+    $controls.EnableCodexLogBox.IsChecked = $enableLog
+
+    $logPath = $null
+    try {
+      if ($null -ne $g -and -not [string]::IsNullOrWhiteSpace($g.logPath)) { $logPath = $g.logPath.ToString() }
+    } catch {}
+    if ([string]::IsNullOrWhiteSpace($logPath)) { $logPath = Get-DefaultNotifyLogPath }
+    if (-not [string]::IsNullOrWhiteSpace($logPath)) { $logPath = Normalize-WindowsPath $logPath }
+    $controls.CodexLogPathBox.Text = $logPath
+  }
 }
 
 function Read-UIToConfig {
@@ -940,50 +1045,82 @@ function Read-UIToConfig {
     okText              = $controls.OkTextBox.Text
   }
 
+  $debug = [ordered]@{
+    enableLog = if ($controls.EnableCodexLogBox) { [bool]$controls.EnableCodexLogBox.IsChecked } else { $false }
+    logPath   = if ($controls.CodexLogPathBox) { $controls.CodexLogPathBox.Text } else { "" }
+  }
+
   return [ordered]@{
     version  = 1
     defaults = $defaults
     popup    = $popup
+    debug    = $debug
   }
 }
 
 function Generate-Snippet {
   $useInstalled = [bool]$controls.CmdInstalledRadio.IsChecked
-  $localCmdPath = Join-Path $repoRoot "ai-chat-notify.cmd"
-  $cmd = if ($useInstalled) { "ai-chat-notify" } else { "& `"$localCmdPath`"" }
+
+  $ps1Path = $null
+  if ($useInstalled) {
+    $ps1Path = Resolve-AiChatNotifyPs1Path
+  } else {
+    $ps1Path = Join-Path (Join-Path $repoRoot "scripts") "ai-chat-notify.ps1"
+  }
+  $ps1 = Convert-ToForwardSlashPath (Normalize-WindowsPath $ps1Path)
+
+  $cfgPath = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
+  $cfg = Convert-ToForwardSlashPath (Normalize-WindowsPath $cfgPath)
+
+  $logPath = Get-NotifyLogPathFromUI
+  $log = Convert-ToForwardSlashPath (Normalize-WindowsPath $logPath)
 
   $method = $controls.MethodBox.SelectedItem
   $duration = (TryParse-Int $controls.DurationBox.Text 2)
   $noSound = [bool]$controls.NoSoundBox.IsChecked
-  $commonArgs = @("-Method `"$method`"", "-DurationSeconds $duration")
-  if ($noSound) { $commonArgs += "-NoSound" }
-  $common = ($commonArgs -join " ")
 
-  $eventFileLine = '$eventFile = "C:\path\to\event.json"'
+  $args = New-Object System.Collections.Generic.List[string]
+  $args.Add("-NoProfile")
+  $args.Add("-ExecutionPolicy")
+  $args.Add("Bypass")
+  $args.Add("-File")
+  $args.Add("`"$ps1`"")
+  if (-not [string]::IsNullOrWhiteSpace($cfg)) {
+    $args.Add("-ConfigPath")
+    $args.Add("`"$cfg`"")
+  }
+  if (-not [string]::IsNullOrWhiteSpace($log)) {
+    $args.Add("-LogPath")
+    $args.Add("`"$log`"")
+  }
+  if (-not [string]::IsNullOrWhiteSpace($method)) {
+    $args.Add("-Method")
+    $args.Add("`"$method`"")
+  }
+  $args.Add("-DurationSeconds")
+  $args.Add($duration.ToString())
+  if ($noSound) { $args.Add("-NoSound") }
+
+  $common = ($args -join " ")
+  $eventFileLine = '$eventFile = "C:/path/to/event.json"'
 
   if ([bool]$controls.InputStdinRadio.IsChecked) {
-    if ($useInstalled) {
-      return @(
-        $eventFileLine
-        "Get-Content `"$eventFile`" -Raw | $cmd $common"
-      ) -join "`r`n"
-    }
     return @(
-      $eventFileLine
-      "Get-Content `"$eventFile`" -Raw | $cmd $common"
+      "# AI 工具集成：工具会把事件 JSON 作为最后一个参数追加"
+      "powershell.exe $common -EventJson"
     ) -join "`r`n"
   }
 
   if ([bool]$controls.InputEventFileRadio.IsChecked) {
     return @(
       $eventFileLine
-      "$cmd -EventFile `"$eventFile`" $common"
+      "powershell.exe $common -EventFile `"$eventFile`""
     ) -join "`r`n"
   }
 
   return @(
     $eventFileLine
-    "$cmd (Get-Content `"$eventFile`" -Raw) $common"
+    "powershell.exe $common -EventJson (Get-Content `"$eventFile`" -Raw)"
   ) -join "`r`n"
 }
 
@@ -1138,7 +1275,8 @@ function Write-CodexNotify {
   }
 
   $configPathToUse = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
-  $notifyLine = Build-CodexNotifyLine -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse
+  $logPathToUse = Get-NotifyLogPathFromUI
+  $notifyLine = Build-CodexNotifyLine -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse -LogPathToUse $logPathToUse
 
   $risk = "可能影响 Codex 的通知触发行为；将创建备份并覆盖 notify 设置。"
   if (-not (Confirm-Dangerous -Operation "修改 Codex 配置（写入 notify）" -Impact $tomlPath -Risk $risk)) {
@@ -1314,6 +1452,16 @@ if ($controls.OpenCodexConfigBtn) {
 
 if ($controls.CheckCodexNotifyBtn) {
   $controls.CheckCodexNotifyBtn.Add_Click({ Check-CodexNotify })
+}
+
+if ($controls.EnableCodexLogBox) {
+  $controls.EnableCodexLogBox.Add_Checked({ Update-CodexLogUiState })
+  $controls.EnableCodexLogBox.Add_Unchecked({ Update-CodexLogUiState })
+  Update-CodexLogUiState
+}
+
+if ($controls.OpenCodexLogBtn) {
+  $controls.OpenCodexLogBtn.Add_Click({ Open-NotifyLog })
 }
 
 if ($controls.CopyCodexNotifyBtn) {
