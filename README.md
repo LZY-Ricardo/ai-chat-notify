@@ -16,7 +16,7 @@
 
 ### 可视化配置器（Windows）
 
-用于“傻瓜式”配置弹窗样式与默认文案，并可一键复制用于集成的命令片段（stdin / `-EventFile` / 位置参数）。
+用于“傻瓜式”配置弹窗样式与默认文案，并可一键复制用于集成的命令片段（argv 末尾追加 JSON / `-EventFile` / `-EventJson`）。
 
 #### 免安装运行（推荐先体验）
 
@@ -33,8 +33,20 @@ ai-chat-notify-config
 配置器支持：
 - 编辑并保存 `config.json`（默认路径见下文）
 - 一键测试 `popup` / `balloon`
-- 复制“集成片段”到剪贴板（用于粘贴到 Codex/Claude Code 等产品的 hook 配置里）
-- 一键写入 Codex `config.toml` 的 `notify`（会创建备份；重启 Codex 生效）
+- 复制“集成片段”到剪贴板（已改为更稳的 `powershell.exe -File ... -EventJson` 形式）
+- Codex 集成：打开/检查/复制 `notify`，保存并写入 `config.toml`（自动备份/可恢复；重启 Codex 生效）
+- 调试日志：可视化开关 `-LogPath`，并支持一键打开日志文件
+
+#### 新手流程（接入 Codex，推荐）
+
+1) 运行配置器：`.\ai-chat-notify-config.cmd`  
+2) 在“基础/样式”页配置文案与样式，点击“测试 Popup/balloon”预览  
+3) 右下角点击“保存配置”  
+4) 点击“去配置 Codex” → 在“安装/集成”页点击“保存并写入 notify”  
+5) 重启 `codex`（CLI/IDE 插件都需要重启才能加载新配置）  
+6) 回到配置器点击“检查 notify”确认是否匹配当前配置器生成的 `notify`
+
+> 提示：如果写坏了 `config.toml` 导致 Codex 无法启动，可在配置器里点“恢复最近备份”。
 
 ### 免安装（最简单，适合做 hook）
 在仓库根目录直接运行：
@@ -48,6 +60,8 @@ ai-chat-notify-config
 ```bat
 .\scripts\ai-chat-notify.cmd -Title "Codex" -Subtitle "Turn complete" -Message "Check your CLI/IDE for details."
 ```
+
+> 对 AI 产品集成（例如 Codex 的 `notify`）更推荐直接调用 `ai-chat-notify.ps1` 并使用 `-EventJson`：避免 `cmd.exe /c` 的二次解析把事件 JSON 的引号/反斜杠拆碎。
 
 ### 安装（可选：让 `ai-chat-notify` 全局可用）
 在仓库根目录运行（会把脚本复制到用户目录；`-AddToPath` 会修改你的用户级 PATH）：
@@ -100,20 +114,26 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 
 ## 事件 JSON 输入
 
-三种方式任选其一（更推荐 `stdin` 或 `-EventFile`，避免转义/引号问题）：
+推荐优先级：
 
-### 1) 位置参数（兼容 Codex hook）
-你可以把事件 JSON **作为第 1 个位置参数**传入：
+- AI 产品 hook/notify：`-EventJson`（由上游把事件 JSON 作为最后一个参数追加，最稳）
+- 手动/脚本调用：`-EventFile` 或 `stdin`
+
+### 1) `-EventJson`（推荐）
 
 ```powershell
+$eventJson = Get-Content "./examples/codex-agent-turn-complete.json" -Raw
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notify.ps1" `
-  (Get-Content "./examples/codex-agent-turn-complete.json" -Raw)
+  -EventJson $eventJson -Method "popup" -DurationSeconds 2 -NoSound
 ```
+
+> Codex 的 `notify` 会在最后追加事件 JSON：配置器写入的 `notify` 会预先放一个 `-EventJson` 参数位，确保 PowerShell 正确绑定。
 
 ### 2) stdin（推荐：最好集成、最少转义）
 
 ```powershell
-Get-Content "./examples/codex-agent-turn-complete.json" -Raw | .\ai-chat-notify.cmd -Method "popup" -DurationSeconds 2 -NoSound
+Get-Content "./examples/codex-agent-turn-complete.json" -Raw | powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notify.ps1" `
+  -Method "popup" -DurationSeconds 2 -NoSound
 ```
 
 ### 3) `-EventFile`
@@ -121,6 +141,14 @@ Get-Content "./examples/codex-agent-turn-complete.json" -Raw | .\ai-chat-notify.
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notify.ps1" `
   -EventFile "./examples/codex-agent-turn-complete.json" -Method "popup" -DurationSeconds 2 -NoSound
+```
+
+### 4) 位置参数（兼容；不推荐用于集成）
+你可以把事件 JSON **作为第 1 个位置参数**传入：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notify.ps1" `
+  (Get-Content "./examples/codex-agent-turn-complete.json" -Raw)
 ```
 
 ### 推荐事件结构（通用）
