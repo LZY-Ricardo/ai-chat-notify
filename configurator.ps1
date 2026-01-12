@@ -559,6 +559,10 @@ $xaml = @'
                   ToolTip="在资源管理器中定位 config.toml" />
                 <Button x:Name="CheckCodexNotifyBtn" Content="检查 notify" Padding="10,6" Margin="10,0,0,0"
                   ToolTip="检查 config.toml 中的 notify 是否已配置/是否匹配当前配置" />
+                <Button x:Name="CopyCodexNotifyBtn" Content="复制 notify" Padding="10,6" Margin="10,0,0,0"
+                  ToolTip="复制当前配置器生成的 notify 行（用于手动粘贴到 config.toml）" />
+                <Button x:Name="RestoreCodexBackupBtn" Content="恢复最近备份" Padding="10,6" Margin="10,0,0,0"
+                  ToolTip="将 config.toml 恢复为最近一次自动备份（会覆盖当前 config.toml）" />
                 <Button x:Name="WriteCodexNotifyBtn" Content="保存并写入 notify" Padding="10,6" Margin="10,0,0,0"
                   ToolTip="先保存 config.json，再写入（或覆盖）config.toml 的 notify，并创建 .bak 备份" />
               </StackPanel>
@@ -633,6 +637,8 @@ $controls = @{
   BrowseCodexConfigBtn = $window.FindName("BrowseCodexConfigBtn")
   OpenCodexConfigBtn  = $window.FindName("OpenCodexConfigBtn")
   CheckCodexNotifyBtn = $window.FindName("CheckCodexNotifyBtn")
+  CopyCodexNotifyBtn  = $window.FindName("CopyCodexNotifyBtn")
+  RestoreCodexBackupBtn = $window.FindName("RestoreCodexBackupBtn")
   WriteCodexNotifyBtn = $window.FindName("WriteCodexNotifyBtn")
   SaveBtn             = $window.FindName("SaveBtn")
   CloseBtn            = $window.FindName("CloseBtn")
@@ -777,9 +783,81 @@ function Check-CodexNotify {
   }
 }
 
+function Copy-CodexNotifyLine {
+  try {
+    $notifyPs1Path = Resolve-AiChatNotifyPs1Path
+    if ([string]::IsNullOrWhiteSpace($notifyPs1Path) -or -not (Test-Path -LiteralPath $notifyPs1Path)) {
+      [System.Windows.MessageBox]::Show("找不到 ai-chat-notify.ps1。请先安装或在仓库根目录运行配置器。", "错误", "OK", "Error") | Out-Null
+      return
+    }
+
+    $configPathToUse = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
+    $expected = Build-CodexNotifyLine -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse
+    Set-Clipboard -Value $expected
+    Set-Status "已复制 notify 行到剪贴板。"
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "复制失败", "OK", "Error") | Out-Null
+  }
+}
+
+function Restore-CodexLatestBackup {
+  $tomlPath = Get-CodexTomlPathFromUI
+  if ([string]::IsNullOrWhiteSpace($tomlPath)) {
+    [System.Windows.MessageBox]::Show("无法确定 Codex 配置文件路径（config.toml）。", "错误", "OK", "Error") | Out-Null
+    return
+  }
+  if (-not (Test-Path -LiteralPath $tomlPath)) {
+    [System.Windows.MessageBox]::Show("找不到文件：$tomlPath", "错误", "OK", "Error") | Out-Null
+    return
+  }
+
+  $pattern = $tomlPath + ".bak-*"
+  $candidates = @(Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+  if (-not $candidates -or $candidates.Count -eq 0) {
+    [System.Windows.MessageBox]::Show("未找到备份文件：$pattern", "提示", "OK", "Information") | Out-Null
+    Set-Status "未找到备份：$pattern"
+    return
+  }
+
+  $latest = $candidates[0].FullName
+  $impact = $tomlPath
+  $risk = "将用备份覆盖当前 config.toml。备份文件：$latest"
+  if (-not (Confirm-Dangerous -Operation "恢复 Codex 配置备份" -Impact $impact -Risk $risk)) { return }
+
+  try {
+    $preRestoreBackup = Backup-File $tomlPath
+    Copy-Item -LiteralPath $latest -Destination $tomlPath -Force -ErrorAction Stop
+
+    $validation = Test-TomlTextValid -Path $tomlPath
+    if (-not [bool]$validation.ok) {
+      if (-not [string]::IsNullOrWhiteSpace($preRestoreBackup) -and (Test-Path -LiteralPath $preRestoreBackup)) {
+        Copy-Item -LiteralPath $preRestoreBackup -Destination $tomlPath -Force -ErrorAction Stop
+      }
+      $detail = if (-not [string]::IsNullOrWhiteSpace($validation.error)) { "`r`n`r`n$($validation.error)" } else { "" }
+      [System.Windows.MessageBox]::Show(
+        "恢复后检测到 config.toml 无法被解析，已自动回滚到恢复前的备份。`r`n`r`n使用的校验工具：$($validation.tool)$detail",
+        "恢复失败（已回滚）",
+        "OK",
+        "Error"
+      ) | Out-Null
+      if (-not [string]::IsNullOrWhiteSpace($preRestoreBackup)) {
+        Set-Status "恢复失败：已回滚到恢复前备份：$preRestoreBackup"
+      } else {
+        Set-Status "恢复失败：无恢复前备份可回滚"
+      }
+      return
+    }
+
+    Set-Status "已恢复备份：$latest（重启 Codex 生效）。"
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "恢复失败", "OK", "Error") | Out-Null
+  }
+}
+
 function Save-AndWriteCodexNotify {
   if (-not (Save-ConfigFromUI)) { return }
-  Write-CodexNotify
+  $ok = Write-CodexNotify
+  if ($ok) { Check-CodexNotify }
 }
 
 function Apply-ConfigToUI {
@@ -1037,16 +1115,10 @@ function Test-TomlTextValid {
 }
 
 function Write-CodexNotify {
-  $tomlPath = if ($controls.CodexConfigPathBox) { $controls.CodexConfigPathBox.Text } else { $null }
-  if ([string]::IsNullOrWhiteSpace($tomlPath)) {
-    $tomlPath = Get-DefaultCodexConfigPath
-    if ($controls.CodexConfigPathBox -and -not [string]::IsNullOrWhiteSpace($tomlPath)) {
-      $controls.CodexConfigPathBox.Text = $tomlPath
-    }
-  }
+  $tomlPath = Get-CodexTomlPathFromUI
   if ([string]::IsNullOrWhiteSpace($tomlPath)) {
     [System.Windows.MessageBox]::Show("无法确定 Codex 配置文件路径（config.toml）。", "错误", "OK", "Error") | Out-Null
-    return
+    return $false
   }
 
   $notifyPs1Path = Resolve-AiChatNotifyPs1Path
@@ -1062,14 +1134,17 @@ function Write-CodexNotify {
       "OK",
       "Error"
     ) | Out-Null
-    return
+    return $false
   }
 
   $configPathToUse = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
   $notifyLine = Build-CodexNotifyLine -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse
 
   $risk = "可能影响 Codex 的通知触发行为；将创建备份并覆盖 notify 设置。"
-  if (-not (Confirm-Dangerous -Operation "修改 Codex 配置（写入 notify）" -Impact $tomlPath -Risk $risk)) { return }
+  if (-not (Confirm-Dangerous -Operation "修改 Codex 配置（写入 notify）" -Impact $tomlPath -Risk $risk)) {
+    Set-Status "已取消写入 notify。"
+    return $false
+  }
 
   try {
     $backup = $null
@@ -1105,7 +1180,7 @@ function Write-CodexNotify {
       } else {
         Set-Status "写入失败：TOML 校验未通过（无备份可回滚）"
       }
-      return
+      return $false
     }
 
     if (-not [string]::IsNullOrWhiteSpace($backup)) {
@@ -1113,8 +1188,10 @@ function Write-CodexNotify {
     } else {
       Set-Status "已写入 notify。重启 Codex 生效。"
     }
+    return $true
   } catch {
     [System.Windows.MessageBox]::Show($_.Exception.Message, "写入失败", "OK", "Error") | Out-Null
+    return $false
   }
 }
 
@@ -1237,6 +1314,14 @@ if ($controls.OpenCodexConfigBtn) {
 
 if ($controls.CheckCodexNotifyBtn) {
   $controls.CheckCodexNotifyBtn.Add_Click({ Check-CodexNotify })
+}
+
+if ($controls.CopyCodexNotifyBtn) {
+  $controls.CopyCodexNotifyBtn.Add_Click({ Copy-CodexNotifyLine })
+}
+
+if ($controls.RestoreCodexBackupBtn) {
+  $controls.RestoreCodexBackupBtn.Add_Click({ Restore-CodexLatestBackup })
 }
 
 if ($controls.WriteCodexNotifyBtn) {
