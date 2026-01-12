@@ -348,8 +348,8 @@ $xaml = @'
       <Button x:Name="ReloadBtn" Content="重新加载" Margin="8,0,0,0" Padding="10,6" />
     </StackPanel>
 
-    <TabControl Grid.Row="1" Margin="0,12,0,12">
-      <TabItem Header="基础">
+    <TabControl x:Name="MainTabs" Grid.Row="1" Margin="0,12,0,12">
+      <TabItem x:Name="BasicTabItem" Header="基础">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <Grid Margin="12">
             <Grid.RowDefinitions>
@@ -392,11 +392,22 @@ $xaml = @'
               <Button x:Name="TestPopupBtn" Content="测试 Popup" Padding="12,8" />
               <Button x:Name="TestBalloonBtn" Content="测试 Balloon" Padding="12,8" Margin="10,0,0,0" />
             </StackPanel>
+
+            <Grid Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,12,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Foreground="#6B7280" TextWrapping="Wrap"
+                Text="新手流程：先调整文案并测试预览 → 右下角保存配置 → 到“安装/集成”页把通知接入 Codex（写入后重启 Codex 生效）。" />
+              <Button x:Name="GoCodexTabBtn" Grid.Column="1" Content="去配置 Codex" Padding="12,8" Margin="12,0,0,0"
+                ToolTip="跳转到“安装/集成”页的 Codex 集成区域" />
+            </Grid>
           </Grid>
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="样式（Popup）">
+      <TabItem x:Name="PopupStyleTabItem" Header="样式（Popup）">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <Grid Margin="12">
             <Grid.ColumnDefinitions>
@@ -469,7 +480,7 @@ $xaml = @'
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="集成片段">
+      <TabItem x:Name="SnippetTabItem" Header="集成片段">
         <Grid Margin="12">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -504,30 +515,37 @@ $xaml = @'
         </Grid>
       </TabItem>
 
-      <TabItem Header="安装/卸载">
+      <TabItem x:Name="InstallTabItem" Header="安装/集成">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="12">
-            <TextBlock Text="这里会调用 install.ps1 / uninstall.ps1（会修改用户级 PATH）。" Foreground="#6B7280" />
+            <TextBlock TextWrapping="Wrap" Foreground="#6B7280"
+              Text="可选：安装到 PATH（调用 install.ps1 / uninstall.ps1，会修改用户级 PATH，并覆盖安装目录文件）。" />
+            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#6B7280"
+              Text="仅用于 Codex 通知时：无需安装到 PATH，直接使用下方“Codex 集成”即可。" />
 
             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-              <Button x:Name="InstallBtn" Content="安装到 PATH" Padding="12,8" />
-              <Button x:Name="UninstallBtn" Content="从 PATH 卸载" Padding="12,8" Margin="10,0,0,0" />
+              <Button x:Name="InstallBtn" Content="安装/更新到 PATH" Padding="12,8"
+                ToolTip="复制脚本到默认安装目录，并（可选）加入用户级 PATH" />
+              <Button x:Name="UninstallBtn" Content="卸载并移除 PATH" Padding="12,8" Margin="10,0,0,0"
+                ToolTip="删除默认安装目录文件，并从用户级 PATH 移除" />
             </StackPanel>
 
             <TextBlock Margin="0,12,0,0" TextWrapping="Wrap"
-              Text="提示：修改 PATH 需要重启终端生效。安装后可直接使用 ai-chat-notify 命令。" />
+              Text="提示：修改 PATH 需要重启终端生效。安装后可直接使用 ai-chat-notify / ai-chat-notify-config 命令。" />
 
             <Separator Margin="0,16,0,12" />
 
             <TextBlock Text="Codex 集成（自动写入 notify 到 config.toml）" FontWeight="Bold" />
+            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#6B7280"
+              Text="推荐：点击“保存并写入 notify” → 重启 Codex → 点击“检查 notify”确认已生效。" />
             <Grid Margin="0,10,0,0">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="120" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
               </Grid.ColumnDefinitions>
               <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
               </Grid.RowDefinitions>
@@ -535,9 +553,17 @@ $xaml = @'
               <TextBlock Grid.Row="0" Grid.Column="0" Text="config.toml" VerticalAlignment="Center" />
               <TextBox x:Name="CodexConfigPathBox" Grid.Row="0" Grid.Column="1" Margin="8,2,12,2" />
               <Button x:Name="BrowseCodexConfigBtn" Grid.Row="0" Grid.Column="2" Content="选择..." Padding="10,6" />
-              <Button x:Name="WriteCodexNotifyBtn" Grid.Row="0" Grid.Column="3" Content="写入 notify" Padding="10,6" Margin="10,0,0,0" />
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,8,0,0"
+              <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button x:Name="OpenCodexConfigBtn" Content="打开 config.toml" Padding="10,6"
+                  ToolTip="在资源管理器中定位 config.toml" />
+                <Button x:Name="CheckCodexNotifyBtn" Content="检查 notify" Padding="10,6" Margin="10,0,0,0"
+                  ToolTip="检查 config.toml 中的 notify 是否已配置/是否匹配当前配置" />
+                <Button x:Name="WriteCodexNotifyBtn" Content="保存并写入 notify" Padding="10,6" Margin="10,0,0,0"
+                  ToolTip="先保存 config.json，再写入（或覆盖）config.toml 的 notify，并创建 .bak 备份" />
+              </StackPanel>
+
+              <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,8,0,0"
                 Foreground="#6B7280" TextWrapping="Wrap"
                 Text="会创建 .bak 备份，并覆盖/插入 notify 设置；写入后需重启 Codex 生效。" />
             </Grid>
@@ -600,8 +626,13 @@ $controls = @{
   CopySnippetBtn      = $window.FindName("CopySnippetBtn")
   InstallBtn          = $window.FindName("InstallBtn")
   UninstallBtn        = $window.FindName("UninstallBtn")
+  MainTabs            = $window.FindName("MainTabs")
+  InstallTabItem      = $window.FindName("InstallTabItem")
+  GoCodexTabBtn       = $window.FindName("GoCodexTabBtn")
   CodexConfigPathBox  = $window.FindName("CodexConfigPathBox")
   BrowseCodexConfigBtn = $window.FindName("BrowseCodexConfigBtn")
+  OpenCodexConfigBtn  = $window.FindName("OpenCodexConfigBtn")
+  CheckCodexNotifyBtn = $window.FindName("CheckCodexNotifyBtn")
   WriteCodexNotifyBtn = $window.FindName("WriteCodexNotifyBtn")
   SaveBtn             = $window.FindName("SaveBtn")
   CloseBtn            = $window.FindName("CloseBtn")
@@ -624,6 +655,131 @@ function Confirm-Dangerous {
   $msg = "危险操作检测！`n操作类型：$Operation`n影响范围：$Impact`n风险评估：$Risk`n`n请确认是否继续？"
   $result = [System.Windows.MessageBox]::Show($msg, "确认", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Warning)
   return $result -eq [System.Windows.MessageBoxResult]::Yes
+}
+
+function Get-DefaultInstallDir {
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+      return (Join-Path (Join-Path $env:LOCALAPPDATA "ai-chat-notify") "bin")
+    }
+  } catch {}
+  return (Join-Path (Join-Path $env:USERPROFILE ".ai-chat-notify") "bin")
+}
+
+function Save-ConfigFromUI {
+  try {
+    $pathValue = $controls.ConfigPathBox.Text
+    $cfg = Read-UIToConfig
+    Save-JsonFile $cfg $pathValue
+    Set-Status "已保存：$pathValue"
+    return $true
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "保存失败", "OK", "Error") | Out-Null
+    return $false
+  }
+}
+
+function Get-CodexTomlPathFromUI {
+  $tomlPath = if ($controls.CodexConfigPathBox) { $controls.CodexConfigPathBox.Text } else { $null }
+  if ([string]::IsNullOrWhiteSpace($tomlPath)) {
+    $tomlPath = Get-DefaultCodexConfigPath
+    if ($controls.CodexConfigPathBox -and -not [string]::IsNullOrWhiteSpace($tomlPath)) {
+      $controls.CodexConfigPathBox.Text = Normalize-WindowsPath $tomlPath
+    }
+  }
+  if (-not [string]::IsNullOrWhiteSpace($tomlPath)) { $tomlPath = Normalize-WindowsPath $tomlPath }
+  return $tomlPath
+}
+
+function Get-NotifyBlockFromTomlText {
+  param([Parameter(Mandatory = $true)][string]$TomlText)
+
+  $lines = $TomlText -split "`r?`n", -1
+  $start = -1
+  for ($i = 0; $i -lt $lines.Count; $i++) {
+    if ($lines[$i] -match '^\s*notify\s*=') { $start = $i; break }
+  }
+  if ($start -lt 0) { return $null }
+
+  $end = $start
+  if ($lines[$start] -match '^\s*notify\s*=\s*\[' -and $lines[$start] -notmatch '\]') {
+    while ($end -lt ($lines.Count - 1)) {
+      if ($lines[$end] -match '\]') { break }
+      $end++
+    }
+  }
+
+  return (($lines[$start..$end]) -join "`n")
+}
+
+function Open-CodexConfig {
+  $tomlPath = Get-CodexTomlPathFromUI
+  if ([string]::IsNullOrWhiteSpace($tomlPath)) {
+    [System.Windows.MessageBox]::Show("无法确定 Codex 配置文件路径（config.toml）。", "错误", "OK", "Error") | Out-Null
+    return
+  }
+  if (-not (Test-Path -LiteralPath $tomlPath)) {
+    [System.Windows.MessageBox]::Show("找不到文件：$tomlPath", "错误", "OK", "Error") | Out-Null
+    return
+  }
+
+  try {
+    $arg = '/select,"' + $tomlPath + '"'
+    Start-Process -FilePath "explorer.exe" -ArgumentList @($arg) | Out-Null
+    Set-Status "已打开：$tomlPath"
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "打开失败", "OK", "Error") | Out-Null
+  }
+}
+
+function Check-CodexNotify {
+  $tomlPath = Get-CodexTomlPathFromUI
+  if ([string]::IsNullOrWhiteSpace($tomlPath)) {
+    [System.Windows.MessageBox]::Show("无法确定 Codex 配置文件路径（config.toml）。", "错误", "OK", "Error") | Out-Null
+    return
+  }
+  if (-not (Test-Path -LiteralPath $tomlPath)) {
+    [System.Windows.MessageBox]::Show("找不到文件：$tomlPath", "错误", "OK", "Error") | Out-Null
+    return
+  }
+
+  try {
+    $text = Get-Content -LiteralPath $tomlPath -Raw -Encoding UTF8 -ErrorAction Stop
+    $existing = Get-NotifyBlockFromTomlText -TomlText $text
+    if ([string]::IsNullOrWhiteSpace($existing)) {
+      Set-Status "未检测到 notify：$tomlPath"
+      return
+    }
+
+    $notifyPs1Path = Resolve-AiChatNotifyPs1Path
+    if ([string]::IsNullOrWhiteSpace($notifyPs1Path) -or -not (Test-Path -LiteralPath $notifyPs1Path)) {
+      Set-Status "检查失败：找不到 ai-chat-notify.ps1"
+      return
+    }
+
+    $configPathToUse = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
+    $expected = Build-CodexNotifyLine -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse
+
+    if ($existing.Trim() -eq $expected.Trim()) {
+      Set-Status "notify 已配置并匹配：$tomlPath"
+      return
+    }
+
+    [System.Windows.MessageBox]::Show(
+      "检测到 notify，但与当前配置器生成的不一致。`r`n`r`n当前（config.toml）：`r`n$existing`r`n`r`n期望（当前配置器）：`r`n$expected`r`n`r`n如需更新，请点击 [保存并写入 notify]。",
+      "notify 不一致",
+      "OK",
+      "Warning"
+    ) | Out-Null
+    Set-Status "notify 不一致：可点击 [保存并写入 notify] 覆盖。"
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "检查失败", "OK", "Error") | Out-Null
+  }
+}
+
+function Save-AndWriteCodexNotify {
+  if (-not (Save-ConfigFromUI)) { return }
+  Write-CodexNotify
 }
 
 function Apply-ConfigToUI {
@@ -976,16 +1132,7 @@ $controls.CopySnippetBtn.Add_Click({
   }
 })
 
-$controls.SaveBtn.Add_Click({
-  try {
-    $pathValue = $controls.ConfigPathBox.Text
-    $cfg = Read-UIToConfig
-    Save-JsonFile $cfg $pathValue
-    Set-Status "已保存：$pathValue"
-  } catch {
-    [System.Windows.MessageBox]::Show($_.Exception.Message, "保存失败", "OK", "Error") | Out-Null
-  }
-})
+$controls.SaveBtn.Add_Click({ [void](Save-ConfigFromUI) })
 
 $controls.CloseBtn.Add_Click({ $window.Close() })
 
@@ -1005,6 +1152,19 @@ $controls.OpenConfigDirBtn.Add_Click({
   }
 })
 
+if ($controls.GoCodexTabBtn) {
+  $controls.GoCodexTabBtn.Add_Click({
+    try {
+      if ($controls.MainTabs -and $controls.InstallTabItem) {
+        $controls.MainTabs.SelectedItem = $controls.InstallTabItem
+        Set-Status "请在此页点击 [保存并写入 notify]，然后重启 Codex 生效。"
+      }
+    } catch {
+      [System.Windows.MessageBox]::Show($_.Exception.Message, "跳转失败", "OK", "Error") | Out-Null
+    }
+  })
+}
+
 $controls.InstallBtn.Add_Click({
   $installScript = Join-Path $repoRoot "install.ps1"
   if (-not (Test-Path -LiteralPath $installScript)) {
@@ -1012,10 +1172,13 @@ $controls.InstallBtn.Add_Click({
     return
   }
 
-  if (-not (Confirm-Dangerous -Operation "修改用户 PATH（安装到 PATH）" -Impact "当前用户级 PATH")) { return }
+  $installDir = Get-DefaultInstallDir
+  $impact = "用户级 PATH；安装目录：$installDir（会覆盖同名文件）"
+  $risk = "可能影响你的 PATH；覆盖安装目录下的脚本文件；需要重启终端生效。"
+  if (-not (Confirm-Dangerous -Operation "安装/更新到 PATH" -Impact $impact -Risk $risk)) { return }
 
   try {
-    & $installScript -AddToPath
+    & $installScript -AddToPath -Force
     Set-Status "已执行安装（PATH 可能需要重启终端生效）。"
   } catch {
     [System.Windows.MessageBox]::Show($_.Exception.Message, "安装失败", "OK", "Error") | Out-Null
@@ -1029,7 +1192,10 @@ $controls.UninstallBtn.Add_Click({
     return
   }
 
-  if (-not (Confirm-Dangerous -Operation "修改用户 PATH（从 PATH 卸载）" -Impact "当前用户级 PATH")) { return }
+  $installDir = Get-DefaultInstallDir
+  $impact = "用户级 PATH；安装目录：$installDir（会删除该目录下的脚本文件）"
+  $risk = "可能影响你的 PATH；删除安装目录下的脚本文件；需要重启终端生效。"
+  if (-not (Confirm-Dangerous -Operation "卸载并移除 PATH" -Impact $impact -Risk $risk)) { return }
 
   try {
     & $uninstallScript -RemoveFromPath
@@ -1065,9 +1231,17 @@ if ($controls.BrowseCodexConfigBtn) {
   })
 }
 
-if ($controls.WriteCodexNotifyBtn) {
-  $controls.WriteCodexNotifyBtn.Add_Click({ Write-CodexNotify })
+if ($controls.OpenCodexConfigBtn) {
+  $controls.OpenCodexConfigBtn.Add_Click({ Open-CodexConfig })
 }
 
-Set-Status "就绪"
+if ($controls.CheckCodexNotifyBtn) {
+  $controls.CheckCodexNotifyBtn.Add_Click({ Check-CodexNotify })
+}
+
+if ($controls.WriteCodexNotifyBtn) {
+  $controls.WriteCodexNotifyBtn.Add_Click({ Save-AndWriteCodexNotify })
+}
+
+Set-Status "就绪：先测试并保存配置，然后写入 Codex notify。"
 [void]$window.ShowDialog()
