@@ -48,6 +48,49 @@ ai-chat-notify-config
 
 > 提示：如果写坏了 `config.toml` 导致 Codex 无法启动，可在配置器里点“恢复最近备份”。
 
+#### Codex 集成（手动写入 config.toml）
+
+如果你不想用配置器自动写入，也可以手动编辑 Codex 配置文件：`%USERPROFILE%\.codex\config.toml`。
+
+**关键点：**
+- `notify` 是“argv 数组”，不要把整条命令拼成一个字符串塞进数组
+- 推荐用正斜杠路径（`C:/...`），避免反斜杠转义
+- 确保 `-EventJson` 在 argv 最后：Codex 会在最后追加事件 JSON 作为它的值
+
+示例（推荐：直接调用 `ai-chat-notify.ps1`）：
+
+```toml
+notify = [
+  "powershell.exe",
+  "-NoProfile",
+  "-ExecutionPolicy",
+  "Bypass",
+  "-File",
+  "C:/Users/<you>/AppData/Local/ai-chat-notify/bin/ai-chat-notify.ps1",
+  "-ConfigPath",
+  "C:/Users/<you>/AppData/Local/ai-chat-notify/config.json",
+  "-EventJson",
+]
+```
+
+开启日志（可选）：
+
+```toml
+notify = [
+  "powershell.exe",
+  "-NoProfile",
+  "-ExecutionPolicy",
+  "Bypass",
+  "-File",
+  "C:/Users/<you>/AppData/Local/ai-chat-notify/bin/ai-chat-notify.ps1",
+  "-ConfigPath",
+  "C:/Users/<you>/AppData/Local/ai-chat-notify/config.json",
+  "-LogPath",
+  "C:/Users/<you>/AppData/Local/ai-chat-notify/ai-chat-notify.log",
+  "-EventJson",
+]
+```
+
 ### 免安装（最简单，适合做 hook）
 在仓库根目录直接运行：
 
@@ -188,6 +231,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 - `AI_CHAT_NOTIFY_CONFIG_PATH`（配置文件路径）
 
 兼容读取 `CODEX_NOTIFY_*` 同名变量（便于从现有 Codex 配置迁移）。
+
+## 排障（Troubleshooting）
+
+- `codex` 无法启动（config.toml parse error）：先检查 `config.toml` 的 `notify = [...]` 是否缺逗号/引号；如果是配置器写入导致，直接用配置器的“恢复最近备份”回滚。
+- 对话结束不弹窗：确认已重启 `codex`；检查 `config.toml` 是否存在 `notify` 且末尾包含 `"-EventJson"`；用配置器点“检查 notify”确认是否匹配。
+- 弹窗内容和配置器保存的不一致：确认 `notify` 里 `-ConfigPath` 指向的就是你保存的 `config.json`；修改配置后建议点“保存并写入 notify”同步（避免还在用旧路径）。
+- 日志为空/没有生成：在配置器勾选“调试日志（-LogPath）”并写入 notify，重启 `codex` 后再触发一次；或临时设置环境变量 `AI_CHAT_NOTIFY_LOG`（兼容 `CODEX_NOTIFY_LOG`）。
+- `balloon` 不显示：优先改用 `popup`（`balloon` 依赖系统通知/托盘能力与相关设置）。
 
 ## License
 
