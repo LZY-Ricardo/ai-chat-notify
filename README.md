@@ -1,8 +1,8 @@
 # ai-chat-notify
 
-为 **AI 对话类产品**（CLI / IDE 插件等）提供的 **Windows 通知**脚本：目前用于在一次对话/任务**正常结束**时，用更友好的弹窗/气泡提醒你。
+为 **Codex（CLI / VS Code 插件）**提供的 **Windows 通知**脚本：目前用于在一次对话/任务**正常结束**时，用更友好的弹窗/气泡提醒你。
 
-目前实现聚焦在 Windows（PowerShell + WPF / WinForms），后续会逐步增强事件类型适配，并按 provider 适配更多产品（例如 Claude Code 等）。
+目前实现聚焦在 Windows（PowerShell + WPF / WinForms），后续会逐步增强事件类型适配，并逐步扩展到更多 AI 对话产品。
 
 ## 特性
 
@@ -12,6 +12,7 @@
 - 失败也不影响主流程：脚本总是 `exit 0`
 - 事件输入：支持把事件 JSON 作为参数传入（包含对 Codex 事件的兼容解析）
 - 事件类型：当前主要用于 **turn complete**（对话/任务正常结束）提醒；其他类型后续逐步增强
+- 产品适配：当前仅适配 Codex（CLI / VS Code 插件）
 
 ## 快速开始（Windows）   
 
@@ -44,7 +45,7 @@ ai-chat-notify-config
 2) 在“基础/样式”页配置文案与样式，点击“测试 Popup/balloon”预览  
 3) 右下角点击“保存配置”  
 4) 点击“去配置 Codex” → 在“安装/集成”页点击“保存并写入 notify”  
-5) 重启 `codex`（CLI/IDE 插件都需要重启才能加载新配置）  
+5) 重启 `codex`（CLI / VS Code 插件都需要重启才能加载新配置）  
 6) 回到配置器点击“检查 notify”确认是否匹配当前配置器生成的 `notify`
 
 > 提示：如果写坏了 `config.toml` 导致 Codex 无法启动，可在配置器里点“恢复最近备份”。
@@ -202,8 +203,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 `ai-chat-notify` 会优先读取这些字段（按需提供即可）。目前主要面向 **turn complete** 场景；其他类型字段先按通用结构保留，后续逐步增强。
 
 ```json
-{
-  "provider": "codex | claude-code | ...",
+  {
+  "provider": "codex",
   "type": "agent-turn-complete | turn_complete | ...",
   "title": "标题（可选）",
   "subtitle": "副标题（可选）",
