@@ -11,6 +11,7 @@
 - 不阻塞调用方：外层脚本会启动一个隐藏的 PowerShell（`-STA`）子进程显示 UI
 - 失败也不影响主流程：脚本总是 `exit 0`
 - 事件输入：支持把事件 JSON 作为参数传入（包含对 Codex 事件的兼容解析）
+- 事件类型：当前主要用于 **turn complete**（对话/任务正常结束）提醒；其他类型后续逐步增强
 
 ## 快速开始（Windows）   
 
@@ -161,6 +162,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 
 - AI 产品 hook/notify：`-EventJson`（由上游把事件 JSON 作为最后一个参数追加，最稳）
 - 手动/脚本调用：`-EventFile` 或 `stdin`
+
+> 说明：当前主要用于 **turn complete**（对话/任务正常结束）提醒；其他事件类型后续逐步增强适配。
 
 ### 1) `-EventJson`（推荐）
 
