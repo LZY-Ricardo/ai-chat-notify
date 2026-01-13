@@ -1,6 +1,6 @@
 # ai-chat-notify
 
-为 **AI 对话类产品**（CLI / IDE 插件等）提供的 **Windows 通知**脚本：当一次对话/任务完成、报错或需要你回到界面时，用更友好的弹窗/气泡提醒你。
+为 **AI 对话类产品**（CLI / IDE 插件等）提供的 **Windows 通知**脚本：目前用于在一次对话/任务**正常结束**时，用更友好的弹窗/气泡提醒你。
 
 目前实现聚焦在 Windows（PowerShell + WPF / WinForms），后续可按 provider 适配更多产品（例如 Claude Code 等）。
 
@@ -196,12 +196,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 
 ### 推荐事件结构（通用）
 
-`ai-chat-notify` 会优先读取这些字段（按需提供即可）：
+`ai-chat-notify` 会优先读取这些字段（按需提供即可）。目前主要面向 **turn complete** 场景；其他类型字段先按通用结构保留，后续逐步增强。
 
 ```json
 {
   "provider": "codex | claude-code | ...",
-  "type": "turn_complete | error | needs_input | ...",
+  "type": "agent-turn-complete | turn_complete | ...",
   "title": "标题（可选）",
   "subtitle": "副标题（可选）",
   "message": "正文（可选）",
