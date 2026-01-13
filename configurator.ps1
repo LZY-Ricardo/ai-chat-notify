@@ -1167,6 +1167,14 @@ function Check-ClaudeStopHook {
     $settingsText = Get-Content -LiteralPath $settingsPath -Raw -ErrorAction Stop
     $settings = $settingsText | ConvertFrom-Json -ErrorAction Stop
 
+    $stopValue = $null
+    $stopIsArray = $false
+    try {
+      $p = $settings.PSObject.Properties["Stop"]
+      if ($null -ne $p) { $stopValue = $p.Value }
+      if ($null -ne $stopValue) { $stopIsArray = ($stopValue -is [System.Array]) }
+    } catch {}
+
     $notifyPs1Path = Resolve-AiChatNotifyPs1Path
     if ([string]::IsNullOrWhiteSpace($notifyPs1Path) -or -not (Test-Path -LiteralPath $notifyPs1Path)) {
       Set-Status "检查失败：找不到 ai-chat-notify.ps1"
@@ -1179,11 +1187,25 @@ function Check-ClaudeStopHook {
 
     $expectedNorm = Normalize-CommandForCompare $expected
     $existingCommands = @(Get-ClaudeStopHookCommands -SettingsObject $settings)
+    $matched = $false
     foreach ($cmd in $existingCommands) {
-      if ((Normalize-CommandForCompare $cmd) -eq $expectedNorm) {
+      if ((Normalize-CommandForCompare $cmd) -eq $expectedNorm) { $matched = $true; break }
+    }
+
+    if ($matched) {
+      if ($stopIsArray) {
         Set-Status "Stop hook 已配置并匹配：$settingsPath"
         return
       }
+
+      [System.Windows.MessageBox]::Show(
+        "检测到 Stop hook 命令匹配，但 settings.local.json 的 Stop 配置结构不是数组（应为 Stop: [ ... ]）。`r`n`r`nClaude Code 可能不会执行该 hook。`r`n`r`n请点击 [保存并写入 Stop hook] 进行修复。",
+        "Stop hook 结构不正确",
+        "OK",
+        "Warning"
+      ) | Out-Null
+      Set-Status "Stop hook 命令匹配但结构不正确：请点击 [保存并写入 Stop hook] 修复。"
+      return
     }
 
     if ($existingCommands.Count -eq 0) {
@@ -1319,13 +1341,25 @@ function Write-ClaudeStopHook {
       $settings = [pscustomobject]@{}
     }
 
+    $stopValue = $null
+    $stopIsArray = $false
+    try {
+      $p = $settings.PSObject.Properties["Stop"]
+      if ($null -ne $p) { $stopValue = $p.Value }
+      if ($null -ne $stopValue) { $stopIsArray = ($stopValue -is [System.Array]) }
+    } catch {}
+
     $expectedNorm = Normalize-CommandForCompare $command
     $existingCommands = @(Get-ClaudeStopHookCommands -SettingsObject $settings)
+    $hasExpected = $false
     foreach ($cmd in $existingCommands) {
-      if ((Normalize-CommandForCompare $cmd) -eq $expectedNorm) {
-        Set-Status "Stop hook 已存在且匹配：$settingsPath"
-        return $true
-      }
+      if ((Normalize-CommandForCompare $cmd) -eq $expectedNorm) { $hasExpected = $true; break }
+    }
+
+    # 命令已存在但 Stop 结构不是数组时，仍需要写回修复为数组结构（否则 Claude Code 可能不执行 hooks）。
+    if ($hasExpected -and $stopIsArray) {
+      Set-Status "Stop hook 已存在且匹配：$settingsPath"
+      return $true
     }
 
     $newRule = [pscustomobject]@{
@@ -1338,14 +1372,11 @@ function Write-ClaudeStopHook {
       )
     }
 
-    $stopValue = $null
-    try {
-      $p = $settings.PSObject.Properties["Stop"]
-      if ($null -ne $p) { $stopValue = $p.Value }
-    } catch {}
-
-    $stopRules = Ensure-ArrayValue $stopValue
-    $stopRules += $newRule
+    # 规范化为数组：Stop 必须是 JSON 数组（"Stop": [ ... ]）。
+    $stopRules = @()
+    if ($null -ne $stopValue) { $stopRules = @($stopValue) }
+    $stopRules = @($stopRules | Where-Object { $null -ne $_ })
+    if (-not $hasExpected) { $stopRules += $newRule }
     $settings | Add-Member -NotePropertyName "Stop" -NotePropertyValue $stopRules -Force
 
     $updatedText = $settings | ConvertTo-Json -Depth 10
