@@ -1,6 +1,6 @@
 # ai-chat-notify
 
-为 **Codex（CLI / VS Code 插件）**提供的 **Windows 通知**脚本：目前用于在一次对话/任务**正常结束**时，用更友好的弹窗/气泡提醒你。
+为 **AI 对话产品**提供的 **Windows 通知**脚本：目前已适配 Codex（CLI / VS Code 插件）与 Claude Code（Stop hook），用于在一次对话/任务结束时，用更友好的弹窗/气泡提醒你。
 
 目前实现聚焦在 Windows（PowerShell + WPF / WinForms），后续会逐步增强事件类型适配，并逐步扩展到更多 AI 对话产品。
 
@@ -11,8 +11,8 @@
 - 不阻塞调用方：外层脚本会启动一个隐藏的 PowerShell（`-STA`）子进程显示 UI
 - 失败也不影响主流程：脚本总是 `exit 0`
 - 事件输入：支持把事件 JSON 作为参数传入（包含对 Codex 事件的兼容解析）
-- 事件类型：当前主要用于 **turn complete**（对话/任务正常结束）提醒；其他类型后续逐步增强
-- 产品适配：当前仅适配 Codex（CLI / VS Code 插件）
+- 事件类型：当前主要覆盖 **turn complete**（Codex 对话/任务正常结束）与 **Stop**（Claude Code 停止）提醒；其他类型后续逐步增强
+- 产品适配：已适配 Codex（CLI / VS Code 插件）；新增 Claude Code（Stop hook，Windows）
 
 ## 快速开始（Windows）   
 
@@ -49,6 +49,17 @@ ai-chat-notify-config
 6) 回到配置器点击“检查 notify”确认是否匹配当前配置器生成的 `notify`
 
 > 提示：如果写坏了 `config.toml` 导致 Codex 无法启动，可在配置器里点“恢复最近备份”。
+
+#### 新手流程（接入 Claude Code，Stop hook）
+
+1) 运行配置器：`.\ai-chat-notify-config.cmd`  
+2) 在“基础/样式”页把 `Provider` 选为 `claude-code`（并按需修改 Title/Subtitle/Message）  
+3) 右下角点击“保存配置”  
+4) 在“安装/集成”页的 **Claude Code 集成（Stop hook）** 区域点击“保存并写入 Stop hook”  
+5) 重启 `claude`（Claude Code）生效  
+6) 回到配置器点击“检查 Stop hook”确认是否匹配当前配置器生成的命令
+
+> 提示：Claude Code hooks 需要 workspace trust（未接受信任会跳过执行）；如未触发请先在目标项目目录接受信任，并打开“调试日志（-LogPath）”排查。
 
 #### Codex 集成（手动写入 config.toml）
 
@@ -161,7 +172,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 
 推荐优先级：
 
-- AI 产品 hook/notify：`-EventJson`（由上游把事件 JSON 作为最后一个参数追加，最稳）
+- Claude Code hooks：stdin（Claude Code 会把事件 JSON 写入 stdin）
+- Codex notify：`-EventJson`（Codex 会把事件 JSON 作为最后一个参数追加，最稳）
 - 手动/脚本调用：`-EventFile` 或 `stdin`
 
 > 说明：当前主要用于 **turn complete**（对话/任务正常结束）提醒；其他事件类型后续逐步增强适配。
@@ -240,6 +252,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 
 - `codex` 无法启动（config.toml parse error）：先检查 `config.toml` 的 `notify = [...]` 是否缺逗号/引号；如果是配置器写入导致，直接用配置器的“恢复最近备份”回滚。
 - 对话结束不弹窗：确认已重启 `codex`；检查 `config.toml` 是否存在 `notify` 且末尾包含 `"-EventJson"`；用配置器点“检查 notify”确认是否匹配。
+- Claude Code Stop hook 不触发：确认已重启 `claude`；检查 `%USERPROFILE%\.claude\settings.local.json` 是否存在 `Stop` 配置；确认 workspace trust 已接受（否则 hooks 会被跳过）；必要时启用“调试日志（-LogPath）”查看日志。
 - 弹窗内容和配置器保存的不一致：确认 `notify` 里 `-ConfigPath` 指向的就是你保存的 `config.json`；修改配置后建议点“保存并写入 notify”同步（避免还在用旧路径）。
 - 日志为空/没有生成：在配置器勾选“调试日志（-LogPath）”并写入 notify，重启 `codex` 后再触发一次；或临时设置环境变量 `AI_CHAT_NOTIFY_LOG`（兼容 `CODEX_NOTIFY_LOG`）。
 - `balloon` 不显示：优先改用 `popup`（`balloon` 依赖系统通知/托盘能力与相关设置）。

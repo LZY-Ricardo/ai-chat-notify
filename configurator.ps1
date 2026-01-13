@@ -148,6 +148,15 @@ function Get-DefaultCodexConfigPath {
   return $null
 }
 
+function Get-DefaultClaudeSettingsLocalPath {
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+      return (Join-Path (Join-Path $env:USERPROFILE ".claude") "settings.local.json")
+    }
+  } catch {}
+  return $null
+}
+
 function Normalize-WindowsPath {
   param([AllowNull()][string]$Path)
   if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
@@ -592,6 +601,45 @@ $xaml = @'
                 Foreground="#6B7280" TextWrapping="Wrap"
                 Text="会创建 .bak 备份，并覆盖/插入 notify 设置；写入后需重启 Codex 生效。" />
             </Grid>
+
+            <Separator Margin="0,16,0,12" />
+
+            <TextBlock Text="Claude Code 集成（Stop hook）" FontWeight="Bold" />
+            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#6B7280"
+              Text="推荐：点击“保存并写入 Stop hook” → 重启 Claude Code → 在目标项目目录接受 workspace trust 后跑一轮对话验证。" />
+            <Grid Margin="0,10,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="settings.local.json" VerticalAlignment="Center" />
+              <TextBox x:Name="ClaudeSettingsPathBox" Grid.Row="0" Grid.Column="1" Margin="8,2,12,2" />
+              <Button x:Name="BrowseClaudeSettingsBtn" Grid.Row="0" Grid.Column="2" Content="选择..." Padding="10,6" />
+
+              <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button x:Name="OpenClaudeSettingsBtn" Content="打开 settings.local.json" Padding="10,6"
+                  ToolTip="在资源管理器中定位 settings.local.json" />
+                <Button x:Name="CheckClaudeStopHookBtn" Content="检查 Stop hook" Padding="10,6" Margin="10,0,0,0"
+                  ToolTip="检查 settings.local.json 中是否已配置 ai-chat-notify 的 Stop hook" />
+                <Button x:Name="CopyClaudeStopHookBtn" Content="复制 Stop 片段" Padding="10,6" Margin="10,0,0,0"
+                  ToolTip="复制可粘贴到 settings.local.json 的 JSON 片段（用于手动合并）" />
+                <Button x:Name="RestoreClaudeBackupBtn" Content="恢复最近备份" Padding="10,6" Margin="10,0,0,0"
+                  ToolTip="将 settings.local.json 恢复为最近一次自动备份（会覆盖当前文件）" />
+                <Button x:Name="WriteClaudeStopHookBtn" Content="保存并写入 Stop hook" Padding="10,6" Margin="10,0,0,0"
+                  ToolTip="先保存 config.json，再写入（或追加）Stop hook 到 settings.local.json，并创建 .bak 备份" />
+              </StackPanel>
+
+              <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,8,0,0"
+                Foreground="#6B7280" TextWrapping="Wrap"
+                Text="写入后需重启 Claude Code 生效；调试日志沿用上方“调试日志（-LogPath）”；若 debug 日志提示 workspace trust 未接受，请先在该目录接受信任（否则 hooks 会被跳过）。" />
+            </Grid>
           </StackPanel>
         </ScrollViewer>
       </TabItem>
@@ -664,6 +712,13 @@ $controls = @{
   CopyCodexNotifyBtn  = $window.FindName("CopyCodexNotifyBtn")
   RestoreCodexBackupBtn = $window.FindName("RestoreCodexBackupBtn")
   WriteCodexNotifyBtn = $window.FindName("WriteCodexNotifyBtn")
+  ClaudeSettingsPathBox = $window.FindName("ClaudeSettingsPathBox")
+  BrowseClaudeSettingsBtn = $window.FindName("BrowseClaudeSettingsBtn")
+  OpenClaudeSettingsBtn = $window.FindName("OpenClaudeSettingsBtn")
+  CheckClaudeStopHookBtn = $window.FindName("CheckClaudeStopHookBtn")
+  CopyClaudeStopHookBtn = $window.FindName("CopyClaudeStopHookBtn")
+  RestoreClaudeBackupBtn = $window.FindName("RestoreClaudeBackupBtn")
+  WriteClaudeStopHookBtn = $window.FindName("WriteClaudeStopHookBtn")
   SaveBtn             = $window.FindName("SaveBtn")
   CloseBtn            = $window.FindName("CloseBtn")
   StatusText          = $window.FindName("StatusText")
@@ -948,12 +1003,404 @@ function Save-AndWriteCodexNotify {
   if ($ok) { Check-CodexNotify }
 }
 
+function Normalize-CommandForCompare {
+  param([AllowNull()][string]$Text)
+  if ($null -eq $Text) { return "" }
+  $t = $Text.Trim()
+  $t = $t.Replace('"', '')
+  $t = ($t -replace '\\', '/')
+  $t = ($t -replace '\s+', ' ')
+  try { return $t.ToLowerInvariant() } catch { return $t }
+}
+
+function Ensure-ArrayValue {
+  param([AllowNull()][object]$Value)
+  if ($null -eq $Value) { return @() }
+  if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) { return @($Value) }
+  return @($Value)
+}
+
+function Get-ClaudeSettingsPathFromUI {
+  $settingsPath = if ($controls.ClaudeSettingsPathBox) { $controls.ClaudeSettingsPathBox.Text } else { $null }
+  if ([string]::IsNullOrWhiteSpace($settingsPath)) {
+    $settingsPath = Get-DefaultClaudeSettingsLocalPath
+    if ($controls.ClaudeSettingsPathBox -and -not [string]::IsNullOrWhiteSpace($settingsPath)) {
+      $controls.ClaudeSettingsPathBox.Text = Normalize-WindowsPath $settingsPath
+    }
+  }
+  if (-not [string]::IsNullOrWhiteSpace($settingsPath)) { $settingsPath = Normalize-WindowsPath $settingsPath }
+  return $settingsPath
+}
+
+function Open-ClaudeSettings {
+  $settingsPath = Get-ClaudeSettingsPathFromUI
+  if ([string]::IsNullOrWhiteSpace($settingsPath)) {
+    [System.Windows.MessageBox]::Show("无法确定 Claude Code 配置文件路径（settings.local.json）。", "错误", "OK", "Error") | Out-Null
+    return
+  }
+
+  try {
+    if (-not (Test-Path -LiteralPath $settingsPath)) {
+      $dir = Split-Path -Parent $settingsPath
+      if (-not [string]::IsNullOrWhiteSpace($dir) -and (Test-Path -LiteralPath $dir)) {
+        Start-Process -FilePath "explorer.exe" -ArgumentList @($dir) | Out-Null
+      } else {
+        Start-Process -FilePath "explorer.exe" | Out-Null
+      }
+      Set-Status "未找到文件：$settingsPath"
+      return
+    }
+
+    $arg = '/select,"' + $settingsPath + '"'
+    Start-Process -FilePath "explorer.exe" -ArgumentList @($arg) | Out-Null
+    Set-Status "已打开：$settingsPath"
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "打开失败", "OK", "Error") | Out-Null
+  }
+}
+
+function Build-ClaudeStopHookCommand {
+  param(
+    [Parameter(Mandatory = $true)][string]$NotifyPs1Path,
+    [AllowNull()][string]$ConfigPathToUse,
+    [AllowNull()][string]$LogPathToUse
+  )
+
+  $ps1 = Convert-ToForwardSlashPath $NotifyPs1Path
+  $cfg = Convert-ToForwardSlashPath $ConfigPathToUse
+  $log = Convert-ToForwardSlashPath $LogPathToUse
+
+  $argv = New-Object System.Collections.Generic.List[string]
+  $argv.Add("powershell.exe")
+  $argv.Add("-NoProfile")
+  $argv.Add("-ExecutionPolicy")
+  $argv.Add("Bypass")
+  $argv.Add("-File")
+  $argv.Add($ps1)
+  if (-not [string]::IsNullOrWhiteSpace($cfg)) {
+    $argv.Add("-ConfigPath")
+    $argv.Add($cfg)
+  }
+  if (-not [string]::IsNullOrWhiteSpace($log)) {
+    $argv.Add("-LogPath")
+    $argv.Add($log)
+  }
+  $argv.Add("-Provider")
+  $argv.Add("claude-code")
+
+  return ($argv -join " ")
+}
+
+function Build-ClaudeStopHookSnippet {
+  param([Parameter(Mandatory = $true)][string]$Command)
+  $obj = [ordered]@{
+    Stop = @(
+      [ordered]@{
+        matcher = "*"
+        hooks   = @(
+          [ordered]@{
+            type    = "command"
+            command = $Command
+          }
+        )
+      }
+    )
+  }
+  return ($obj | ConvertTo-Json -Depth 10)
+}
+
+function Get-ClaudeStopHookCommands {
+  param([AllowNull()][object]$SettingsObject)
+  if ($null -eq $SettingsObject) { return @() }
+
+  $stopValue = $null
+  try {
+    $p = $SettingsObject.PSObject.Properties["Stop"]
+    if ($null -ne $p) { $stopValue = $p.Value }
+  } catch {}
+
+  $rules = Ensure-ArrayValue $stopValue
+  $commands = New-Object System.Collections.Generic.List[string]
+  foreach ($rule in $rules) {
+    if ($null -eq $rule) { continue }
+    $hooksValue = $null
+    try { $hooksValue = $rule.hooks } catch {}
+    $hooks = Ensure-ArrayValue $hooksValue
+    foreach ($h in $hooks) {
+      if ($null -eq $h) { continue }
+      $typeValue = $null
+      $commandValue = $null
+      try { $typeValue = $h.type } catch {}
+      try { $commandValue = $h.command } catch {}
+      if ($null -eq $typeValue -or $null -eq $commandValue) { continue }
+      if ($typeValue.ToString().Trim().ToLowerInvariant() -ne "command") { continue }
+      $cmd = $commandValue.ToString()
+      if (-not [string]::IsNullOrWhiteSpace($cmd)) { $commands.Add($cmd) }
+    }
+  }
+  return @($commands.ToArray())
+}
+
+function Test-JsonTextValid {
+  param([Parameter(Mandatory = $true)][string]$Path)
+  try {
+    $raw = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    $null = ($raw | ConvertFrom-Json -ErrorAction Stop)
+    return [ordered]@{ ok = $true; tool = "ConvertFrom-Json"; error = "" }
+  } catch {
+    return [ordered]@{ ok = $false; tool = "ConvertFrom-Json"; error = $_.Exception.Message }
+  }
+}
+
+function Check-ClaudeStopHook {
+  $settingsPath = Get-ClaudeSettingsPathFromUI
+  if ([string]::IsNullOrWhiteSpace($settingsPath)) {
+    [System.Windows.MessageBox]::Show("无法确定 Claude Code 配置文件路径（settings.local.json）。", "错误", "OK", "Error") | Out-Null
+    return
+  }
+  if (-not (Test-Path -LiteralPath $settingsPath)) {
+    Set-Status "未找到 settings.local.json：$settingsPath"
+    return
+  }
+
+  try {
+    $settingsText = Get-Content -LiteralPath $settingsPath -Raw -ErrorAction Stop
+    $settings = $settingsText | ConvertFrom-Json -ErrorAction Stop
+
+    $notifyPs1Path = Resolve-AiChatNotifyPs1Path
+    if ([string]::IsNullOrWhiteSpace($notifyPs1Path) -or -not (Test-Path -LiteralPath $notifyPs1Path)) {
+      Set-Status "检查失败：找不到 ai-chat-notify.ps1"
+      return
+    }
+
+    $configPathToUse = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
+    $logPathToUse = Get-NotifyLogPathFromUI
+    $expected = Build-ClaudeStopHookCommand -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse -LogPathToUse $logPathToUse
+
+    $expectedNorm = Normalize-CommandForCompare $expected
+    $existingCommands = @(Get-ClaudeStopHookCommands -SettingsObject $settings)
+    foreach ($cmd in $existingCommands) {
+      if ((Normalize-CommandForCompare $cmd) -eq $expectedNorm) {
+        Set-Status "Stop hook 已配置并匹配：$settingsPath"
+        return
+      }
+    }
+
+    if ($existingCommands.Count -eq 0) {
+      Set-Status "未检测到 Stop hook：$settingsPath"
+      return
+    }
+
+    $preview = ($existingCommands | Select-Object -First 2) -join "`r`n"
+    [System.Windows.MessageBox]::Show(
+      "检测到 Stop hooks，但未匹配当前配置器生成的命令。`r`n`r`n当前（settings.local.json，最多展示2条）：`r`n$preview`r`n`r`n期望（当前配置器）：`r`n$expected`r`n`r`n如需更新，请点击 [保存并写入 Stop hook]。",
+      "Stop hook 不一致",
+      "OK",
+      "Warning"
+    ) | Out-Null
+    Set-Status "Stop hook 不一致：可点击 [保存并写入 Stop hook] 追加/更新。"
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "检查失败", "OK", "Error") | Out-Null
+  }
+}
+
+function Copy-ClaudeStopHookSnippet {
+  try {
+    $notifyPs1Path = Resolve-AiChatNotifyPs1Path
+    if ([string]::IsNullOrWhiteSpace($notifyPs1Path) -or -not (Test-Path -LiteralPath $notifyPs1Path)) {
+      [System.Windows.MessageBox]::Show("找不到 ai-chat-notify.ps1。请先安装或在仓库根目录运行配置器。", "错误", "OK", "Error") | Out-Null
+      return
+    }
+
+    $configPathToUse = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
+    $logPathToUse = Get-NotifyLogPathFromUI
+    $command = Build-ClaudeStopHookCommand -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse -LogPathToUse $logPathToUse
+    $snippet = Build-ClaudeStopHookSnippet -Command $command
+
+    Set-Clipboard -Value $snippet
+    Set-Status "已复制 Stop hook 片段到剪贴板。"
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "复制失败", "OK", "Error") | Out-Null
+  }
+}
+
+function Restore-ClaudeLatestBackup {
+  $settingsPath = Get-ClaudeSettingsPathFromUI
+  if ([string]::IsNullOrWhiteSpace($settingsPath)) {
+    [System.Windows.MessageBox]::Show("无法确定 Claude Code 配置文件路径（settings.local.json）。", "错误", "OK", "Error") | Out-Null
+    return
+  }
+  if (-not (Test-Path -LiteralPath $settingsPath)) {
+    [System.Windows.MessageBox]::Show("找不到文件：$settingsPath", "错误", "OK", "Error") | Out-Null
+    return
+  }
+
+  $pattern = $settingsPath + ".bak-*"
+  $candidates = @(Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+  if (-not $candidates -or $candidates.Count -eq 0) {
+    [System.Windows.MessageBox]::Show("未找到备份文件：$pattern", "提示", "OK", "Information") | Out-Null
+    Set-Status "未找到备份：$pattern"
+    return
+  }
+
+  $latest = $candidates[0].FullName
+  $impact = $settingsPath
+  $risk = "将用备份覆盖当前 settings.local.json。备份文件：$latest"
+  if (-not (Confirm-Dangerous -Operation "恢复 Claude Code 配置备份" -Impact $impact -Risk $risk)) { return }
+
+  try {
+    $preRestoreBackup = Backup-File $settingsPath
+    Copy-Item -LiteralPath $latest -Destination $settingsPath -Force -ErrorAction Stop
+
+    $validation = Test-JsonTextValid -Path $settingsPath
+    if (-not [bool]$validation.ok) {
+      if (-not [string]::IsNullOrWhiteSpace($preRestoreBackup) -and (Test-Path -LiteralPath $preRestoreBackup)) {
+        Copy-Item -LiteralPath $preRestoreBackup -Destination $settingsPath -Force -ErrorAction Stop
+      }
+      $detail = if (-not [string]::IsNullOrWhiteSpace($validation.error)) { "`r`n`r`n$($validation.error)" } else { "" }
+      [System.Windows.MessageBox]::Show(
+        "恢复后检测到 settings.local.json 无法被解析，已自动回滚到恢复前的备份。`r`n`r`n使用的校验工具：$($validation.tool)$detail",
+        "恢复失败（已回滚）",
+        "OK",
+        "Error"
+      ) | Out-Null
+      if (-not [string]::IsNullOrWhiteSpace($preRestoreBackup)) {
+        Set-Status "恢复失败：已回滚到恢复前备份：$preRestoreBackup"
+      } else {
+        Set-Status "恢复失败：无恢复前备份可回滚"
+      }
+      return
+    }
+
+    Set-Status "已恢复备份：$latest（重启 Claude Code 生效）。"
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "恢复失败", "OK", "Error") | Out-Null
+  }
+}
+
+function Write-ClaudeStopHook {
+  $settingsPath = Get-ClaudeSettingsPathFromUI
+  if ([string]::IsNullOrWhiteSpace($settingsPath)) {
+    [System.Windows.MessageBox]::Show("无法确定 Claude Code 配置文件路径（settings.local.json）。", "错误", "OK", "Error") | Out-Null
+    return $false
+  }
+
+  $notifyPs1Path = Resolve-AiChatNotifyPs1Path
+  if ([string]::IsNullOrWhiteSpace($notifyPs1Path) -or -not (Test-Path -LiteralPath $notifyPs1Path)) {
+    [System.Windows.MessageBox]::Show("找不到 ai-chat-notify.ps1。请先安装或在仓库根目录运行配置器。", "错误", "OK", "Error") | Out-Null
+    return $false
+  }
+
+  $configPathToUse = if ($controls.ConfigPathBox) { $controls.ConfigPathBox.Text } else { $null }
+  $logPathToUse = Get-NotifyLogPathFromUI
+  $command = Build-ClaudeStopHookCommand -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse -LogPathToUse $logPathToUse
+
+  $risk = "可能影响 Claude Code 的 hooks 行为；将创建备份并插入/追加 Stop hook。"
+  if (-not (Confirm-Dangerous -Operation "修改 Claude Code 配置（写入 Stop hook）" -Impact $settingsPath -Risk $risk)) {
+    Set-Status "已取消写入 Stop hook。"
+    return $false
+  }
+
+  try {
+    $backup = $null
+    $originalText = ""
+
+    if (Test-Path -LiteralPath $settingsPath) {
+      $backup = Backup-File $settingsPath
+      $originalText = Get-Content -LiteralPath $settingsPath -Raw -ErrorAction Stop
+    } else {
+      Ensure-Directory $settingsPath
+    }
+
+    $settings = $null
+    if (-not [string]::IsNullOrWhiteSpace($originalText)) {
+      $settings = $originalText | ConvertFrom-Json -ErrorAction Stop
+    } else {
+      $settings = [pscustomobject]@{}
+    }
+
+    $expectedNorm = Normalize-CommandForCompare $command
+    $existingCommands = @(Get-ClaudeStopHookCommands -SettingsObject $settings)
+    foreach ($cmd in $existingCommands) {
+      if ((Normalize-CommandForCompare $cmd) -eq $expectedNorm) {
+        Set-Status "Stop hook 已存在且匹配：$settingsPath"
+        return $true
+      }
+    }
+
+    $newRule = [pscustomobject]@{
+      matcher = "*"
+      hooks   = @(
+        [pscustomobject]@{
+          type    = "command"
+          command = $command
+        }
+      )
+    }
+
+    $stopValue = $null
+    try {
+      $p = $settings.PSObject.Properties["Stop"]
+      if ($null -ne $p) { $stopValue = $p.Value }
+    } catch {}
+
+    $stopRules = Ensure-ArrayValue $stopValue
+    $stopRules += $newRule
+    $settings | Add-Member -NotePropertyName "Stop" -NotePropertyValue $stopRules -Force
+
+    $updatedText = $settings | ConvertTo-Json -Depth 10
+    Write-Utf8NoBomTextFile -Path $settingsPath -Text $updatedText
+
+    $validation = Test-JsonTextValid -Path $settingsPath
+    if (-not [bool]$validation.ok) {
+      if (-not [string]::IsNullOrWhiteSpace($backup) -and (Test-Path -LiteralPath $backup)) {
+        Copy-Item -LiteralPath $backup -Destination $settingsPath -Force -ErrorAction Stop
+      }
+      $detail = if (-not [string]::IsNullOrWhiteSpace($validation.error)) { "`r`n`r`n$($validation.error)" } else { "" }
+      [System.Windows.MessageBox]::Show(
+        "写入后检测到 settings.local.json 无法被解析，已自动回滚到备份文件。`r`n`r`n使用的校验工具：$($validation.tool)$detail",
+        "写入失败（已回滚）",
+        "OK",
+        "Error"
+      ) | Out-Null
+      if (-not [string]::IsNullOrWhiteSpace($backup)) {
+        Set-Status "写入失败：JSON 校验未通过，已回滚备份：$backup"
+      } else {
+        Set-Status "写入失败：JSON 校验未通过（无备份可回滚）"
+      }
+      return $false
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($backup)) {
+      Set-Status "已写入 Stop hook（已备份：$backup）。重启 Claude Code 生效。"
+    } else {
+      Set-Status "已写入 Stop hook。重启 Claude Code 生效。"
+    }
+    return $true
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "写入失败", "OK", "Error") | Out-Null
+    return $false
+  }
+}
+
+function Save-AndWriteClaudeStopHook {
+  if (-not (Save-ConfigFromUI)) { return }
+  $ok = Write-ClaudeStopHook
+  if ($ok) { Check-ClaudeStopHook }
+}
+
 function Apply-ConfigToUI {
   $controls.ConfigPathBox.Text = Normalize-WindowsPath $ConfigPath
   if ($controls.CodexConfigPathBox) {
     $defaultCodexPath = Get-DefaultCodexConfigPath
     if ([string]::IsNullOrWhiteSpace($controls.CodexConfigPathBox.Text) -and -not [string]::IsNullOrWhiteSpace($defaultCodexPath)) {
       $controls.CodexConfigPathBox.Text = Normalize-WindowsPath $defaultCodexPath
+    }
+  }
+  if ($controls.ClaudeSettingsPathBox) {
+    $defaultClaudePath = Get-DefaultClaudeSettingsLocalPath
+    if ([string]::IsNullOrWhiteSpace($controls.ClaudeSettingsPathBox.Text) -and -not [string]::IsNullOrWhiteSpace($defaultClaudePath)) {
+      $controls.ClaudeSettingsPathBox.Text = Normalize-WindowsPath $defaultClaudePath
     }
   }
 
@@ -1476,5 +1923,51 @@ if ($controls.WriteCodexNotifyBtn) {
   $controls.WriteCodexNotifyBtn.Add_Click({ Save-AndWriteCodexNotify })
 }
 
-Set-Status "就绪：先测试并保存配置，然后写入 Codex notify。"
+if ($controls.BrowseClaudeSettingsBtn) {
+  $controls.BrowseClaudeSettingsBtn.Add_Click({
+    try {
+      $dlg = New-Object Microsoft.Win32.OpenFileDialog
+      $dlg.Title = "选择 Claude Code 配置文件（settings.local.json）"
+      $dlg.Filter = "JSON (*.json)|*.json|All files (*.*)|*.*"
+      $dlg.FileName = "settings.local.json"
+
+      $defaultPath = Get-DefaultClaudeSettingsLocalPath
+      if (-not [string]::IsNullOrWhiteSpace($defaultPath)) {
+        $dir = Split-Path -Parent $defaultPath
+        if (-not [string]::IsNullOrWhiteSpace($dir) -and (Test-Path -LiteralPath $dir)) {
+          $dlg.InitialDirectory = $dir
+        }
+      }
+
+      $result = $dlg.ShowDialog()
+      if ($result -eq $true -and $controls.ClaudeSettingsPathBox) {
+        $controls.ClaudeSettingsPathBox.Text = $dlg.FileName
+      }
+    } catch {
+      [System.Windows.MessageBox]::Show($_.Exception.Message, "选择失败", "OK", "Error") | Out-Null
+    }
+  })
+}
+
+if ($controls.OpenClaudeSettingsBtn) {
+  $controls.OpenClaudeSettingsBtn.Add_Click({ Open-ClaudeSettings })
+}
+
+if ($controls.CheckClaudeStopHookBtn) {
+  $controls.CheckClaudeStopHookBtn.Add_Click({ Check-ClaudeStopHook })
+}
+
+if ($controls.CopyClaudeStopHookBtn) {
+  $controls.CopyClaudeStopHookBtn.Add_Click({ Copy-ClaudeStopHookSnippet })
+}
+
+if ($controls.RestoreClaudeBackupBtn) {
+  $controls.RestoreClaudeBackupBtn.Add_Click({ Restore-ClaudeLatestBackup })
+}
+
+if ($controls.WriteClaudeStopHookBtn) {
+  $controls.WriteClaudeStopHookBtn.Add_Click({ Save-AndWriteClaudeStopHook })
+}
+
+Set-Status "就绪：先测试并保存配置，然后写入 Codex notify / Claude Stop hook。"
 [void]$window.ShowDialog()

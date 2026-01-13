@@ -265,6 +265,17 @@ if (
   $providerValue = Resolve-Provider $configProvider $null
 }
 $eventType = if ($null -eq $event) { $null } else { (Get-ObjectProperty $event @("type", "eventType", "event_type")) }
+$hookEventName = if ($null -eq $event) { $null } else { (Get-ObjectProperty $event @("hook_event_name", "hookEventName")) }
+$stopReason = if ($null -eq $event) { $null } else { (Get-ObjectProperty $event @("reason", "stopReason", "stop_reason")) }
+
+# Claude Code hooks: event name is hook_event_name; only fall back to it when Subtitle isn't configured.
+if (
+  [string]::IsNullOrWhiteSpace($eventType) -and
+  [string]::IsNullOrWhiteSpace($configSubtitle) -and
+  -not [string]::IsNullOrWhiteSpace($hookEventName)
+) {
+  $eventType = $hookEventName.ToString()
+}
 
 if ($null -ne $event) {
   $inputPreview = $null
@@ -309,10 +320,21 @@ if ($null -ne $event) {
   }
 
   if ([string]::IsNullOrWhiteSpace($Message)) {
-    $Message = if (-not [string]::IsNullOrWhiteSpace($eventMessage)) { $eventMessage.ToString() } else { $defaultMessage }
+    if (-not [string]::IsNullOrWhiteSpace($eventMessage)) {
+      $Message = $eventMessage.ToString()
+    } elseif (
+      $providerValue -eq "claude-code" -and
+      -not [string]::IsNullOrWhiteSpace($stopReason) -and
+      [string]::IsNullOrWhiteSpace($configMessage)
+    ) {
+      $Message = $stopReason.ToString()
+    } else {
+      $Message = $defaultMessage
+    }
   }
 
-  Write-NotifyLog ("parsed event provider={0} type={1}" -f $providerValue, $eventType)
+  $reasonPreview = if ([string]::IsNullOrWhiteSpace($stopReason)) { "" } else { (Truncate-Text $stopReason.ToString() 120) }
+  Write-NotifyLog ("parsed event provider={0} type={1} hook={2} reason={3}" -f $providerValue, $eventType, $hookEventName, $reasonPreview)
 } else {
   if ([string]::IsNullOrWhiteSpace($Title)) {
     $Title = Get-NotifyEnvValue "AI_CHAT_NOTIFY_TITLE" @("CODEX_NOTIFY_TITLE")
