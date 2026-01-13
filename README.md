@@ -2,7 +2,7 @@
 
 为 **AI 对话类产品**（CLI / IDE 插件等）提供的 **Windows 通知**脚本：目前用于在一次对话/任务**正常结束**时，用更友好的弹窗/气泡提醒你。
 
-目前实现聚焦在 Windows（PowerShell + WPF / WinForms），后续可按 provider 适配更多产品（例如 Claude Code 等）。
+目前实现聚焦在 Windows（PowerShell + WPF / WinForms），后续会逐步增强事件类型适配，并按 provider 适配更多产品（例如 Claude Code 等）。
 
 ## 特性
 
