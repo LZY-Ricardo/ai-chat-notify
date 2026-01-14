@@ -162,9 +162,7 @@ function Resolve-Provider {
     $raw = $ProviderParam.Trim()
     $normalized = $raw.ToLowerInvariant() -replace "[ _]", "-"
       if ($normalized -ne "auto") {
-        if ($normalized -eq "claude") { return "claude-code" }
-        if ($normalized -eq "claude-code") { return "claude-code" }
-        if ($normalized -eq "claudecode") { return "claude-code" }
+        if ($normalized -eq "claude" -or $normalized -eq "claude-code" -or $normalized -eq "claudecode") { return "claudecode" }
         if ($normalized -eq "codex") { return "codex" }
         if ($normalized -eq "generic") { return "generic" }
         return $normalized
@@ -176,9 +174,7 @@ function Resolve-Provider {
   if (-not [string]::IsNullOrWhiteSpace($p)) {
     $raw = $p.ToString().Trim()
     $normalized = $raw.ToLowerInvariant() -replace "[ _]", "-"
-    if ($normalized -eq "claude") { return "claude-code" }
-    if ($normalized -eq "claude-code") { return "claude-code" }
-    if ($normalized -eq "claudecode") { return "claude-code" }
+    if ($normalized -eq "claude" -or $normalized -eq "claude-code" -or $normalized -eq "claudecode") { return "claudecode" }
     if ($normalized -eq "codex") { return "codex" }
     return $normalized
   }
@@ -301,7 +297,7 @@ if ($null -ne $event) {
       $Title = $configTitle.ToString()
     } elseif ($providerValue -eq "codex") {
       $Title = "Codex"
-    } elseif ($providerValue -eq "claude-code") {
+    } elseif ($providerValue -eq "claudecode") {
       $Title = "Claude Code"
     } else {
       $Title = $defaultTitle
@@ -325,7 +321,7 @@ if ($null -ne $event) {
     if (-not [string]::IsNullOrWhiteSpace($eventMessage)) {
       $Message = $eventMessage.ToString()
     } elseif (
-      $providerValue -eq "claude-code" -and
+      $providerValue -eq "claudecode" -and
       -not [string]::IsNullOrWhiteSpace($stopReason) -and
       [string]::IsNullOrWhiteSpace($configMessage)
     ) {
