@@ -414,9 +414,13 @@ $xaml = @'
                 <ColumnDefinition Width="Auto" />
               </Grid.ColumnDefinitions>
               <TextBlock Grid.Column="0" Foreground="#6B7280" TextWrapping="Wrap"
-                Text="新手流程：先调整文案并测试预览 → 右下角保存配置 → 到“安装/集成”页把通知接入 Codex（写入后重启 Codex 生效）。" />
-              <Button x:Name="GoCodexTabBtn" Grid.Column="1" Content="去配置 Codex" Padding="12,8" Margin="12,0,0,0"
-                ToolTip="跳转到“安装/集成”页的 Codex 集成区域" />
+                Text="新手流程：先调整文案并测试预览 → 右下角保存配置 → 到“安装/集成”页接入 Codex/Claude（写入后重启对应客户端生效）。" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
+                <Button x:Name="GoCodexTabBtn" Content="去配置 Codex" Padding="12,8"
+                  ToolTip="跳转到“安装/集成”页的 Codex 集成区域" />
+                <Button x:Name="GoClaudeTabBtn" Content="去配置 Claude" Padding="12,8" Margin="10,0,0,0"
+                  ToolTip="跳转到“安装/集成”页的 Claude Code 集成区域" />
+              </StackPanel>
             </Grid>
           </Grid>
         </ScrollViewer>
@@ -604,7 +608,7 @@ $xaml = @'
 
             <Separator Margin="0,16,0,12" />
 
-            <TextBlock Text="Claude Code 集成（Stop hook）" FontWeight="Bold" />
+            <TextBlock Text="Claude Code 集成（hooks.Stop）" FontWeight="Bold" />
             <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#6B7280"
               Text="推荐：点击“保存并写入 Stop hook” → 重启 Claude Code → 在目标项目目录接受 workspace trust 后跑一轮对话验证。" />
             <Grid Margin="0,10,0,0">
@@ -626,8 +630,10 @@ $xaml = @'
               <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                 <Button x:Name="OpenClaudeSettingsBtn" Content="打开 settings.local.json" Padding="10,6"
                   ToolTip="在资源管理器中定位 settings.local.json" />
+                <Button x:Name="OpenClaudeDebugBtn" Content="打开 Claude debug" Padding="10,6" Margin="10,0,0,0"
+                  ToolTip="打开 %USERPROFILE%\\.claude\\debug（用于确认 hooks 是否匹配/执行）" />
                 <Button x:Name="CheckClaudeStopHookBtn" Content="检查 Stop hook" Padding="10,6" Margin="10,0,0,0"
-                  ToolTip="检查 settings.local.json 中是否已配置 ai-chat-notify 的 Stop hook" />
+                  ToolTip="检查 settings.local.json 的 hooks.Stop 中是否已配置 ai-chat-notify 的 Stop hook" />
                 <Button x:Name="CopyClaudeStopHookBtn" Content="复制 Stop 片段" Padding="10,6" Margin="10,0,0,0"
                   ToolTip="复制可粘贴到 settings.local.json 的 JSON 片段（用于手动合并）" />
                 <Button x:Name="RestoreClaudeBackupBtn" Content="恢复最近备份" Padding="10,6" Margin="10,0,0,0"
@@ -638,7 +644,7 @@ $xaml = @'
 
               <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,8,0,0"
                 Foreground="#6B7280" TextWrapping="Wrap"
-                Text="写入后需重启 Claude Code 生效；调试日志沿用上方“调试日志（-LogPath）”；若 debug 日志提示 workspace trust 未接受，请先在该目录接受信任（否则 hooks 会被跳过）。" />
+                Text="写入后需重启 Claude Code 生效；调试日志沿用上方“调试日志（-LogPath）”；注意：Claude Code 只识别 settings.local.json 的 hooks.Stop（旧版 Stop 顶层写法不会生效）。若 debug 日志提示 workspace trust 未接受，请先在该目录接受信任（否则 hooks 会被跳过）。" />
             </Grid>
           </StackPanel>
         </ScrollViewer>
@@ -702,6 +708,7 @@ $controls = @{
   MainTabs            = $window.FindName("MainTabs")
   InstallTabItem      = $window.FindName("InstallTabItem")
   GoCodexTabBtn       = $window.FindName("GoCodexTabBtn")
+  GoClaudeTabBtn      = $window.FindName("GoClaudeTabBtn")
   CodexConfigPathBox  = $window.FindName("CodexConfigPathBox")
   BrowseCodexConfigBtn = $window.FindName("BrowseCodexConfigBtn")
   OpenCodexConfigBtn  = $window.FindName("OpenCodexConfigBtn")
@@ -715,6 +722,7 @@ $controls = @{
   ClaudeSettingsPathBox = $window.FindName("ClaudeSettingsPathBox")
   BrowseClaudeSettingsBtn = $window.FindName("BrowseClaudeSettingsBtn")
   OpenClaudeSettingsBtn = $window.FindName("OpenClaudeSettingsBtn")
+  OpenClaudeDebugBtn = $window.FindName("OpenClaudeDebugBtn")
   CheckClaudeStopHookBtn = $window.FindName("CheckClaudeStopHookBtn")
   CopyClaudeStopHookBtn = $window.FindName("CopyClaudeStopHookBtn")
   RestoreClaudeBackupBtn = $window.FindName("RestoreClaudeBackupBtn")
@@ -1059,6 +1067,34 @@ function Open-ClaudeSettings {
   }
 }
 
+function Open-ClaudeDebug {
+  try {
+    $base = $env:USERPROFILE
+    if ([string]::IsNullOrWhiteSpace($base)) {
+      Start-Process -FilePath "explorer.exe" | Out-Null
+      Set-Status "无法确定 USERPROFILE，已打开资源管理器。"
+      return
+    }
+
+    $debugDir = Join-Path (Join-Path $base ".claude") "debug"
+    if (-not (Test-Path -LiteralPath $debugDir)) {
+      $parent = Split-Path -Parent $debugDir
+      if (-not [string]::IsNullOrWhiteSpace($parent) -and (Test-Path -LiteralPath $parent)) {
+        Start-Process -FilePath "explorer.exe" -ArgumentList @($parent) | Out-Null
+      } else {
+        Start-Process -FilePath "explorer.exe" | Out-Null
+      }
+      Set-Status "未找到 Claude debug 目录：$debugDir"
+      return
+    }
+
+    Start-Process -FilePath "explorer.exe" -ArgumentList @($debugDir) | Out-Null
+    Set-Status "已打开 Claude debug：$debugDir"
+  } catch {
+    [System.Windows.MessageBox]::Show($_.Exception.Message, "打开失败", "OK", "Error") | Out-Null
+  }
+}
+
 function Build-ClaudeStopHookCommand {
   param(
     [Parameter(Mandatory = $true)][string]$NotifyPs1Path,
@@ -1076,14 +1112,14 @@ function Build-ClaudeStopHookCommand {
   $argv.Add("-ExecutionPolicy")
   $argv.Add("Bypass")
   $argv.Add("-File")
-  $argv.Add($ps1)
+  $argv.Add("`"$ps1`"")
   if (-not [string]::IsNullOrWhiteSpace($cfg)) {
     $argv.Add("-ConfigPath")
-    $argv.Add($cfg)
+    $argv.Add("`"$cfg`"")
   }
   if (-not [string]::IsNullOrWhiteSpace($log)) {
     $argv.Add("-LogPath")
-    $argv.Add($log)
+    $argv.Add("`"$log`"")
   }
   $argv.Add("-Provider")
   $argv.Add("claude-code")
@@ -1094,32 +1130,26 @@ function Build-ClaudeStopHookCommand {
 function Build-ClaudeStopHookSnippet {
   param([Parameter(Mandatory = $true)][string]$Command)
   $obj = [ordered]@{
-    Stop = @(
-      [ordered]@{
-        matcher = "*"
-        hooks   = @(
-          [ordered]@{
-            type    = "command"
-            command = $Command
-          }
-        )
-      }
-    )
+    hooks = [ordered]@{
+      Stop = @(
+        [ordered]@{
+          matcher = "*"
+          hooks   = @(
+            [ordered]@{
+              type    = "command"
+              command = $Command
+            }
+          )
+        }
+      )
+    }
   }
   return ($obj | ConvertTo-Json -Depth 10)
 }
 
-function Get-ClaudeStopHookCommands {
-  param([AllowNull()][object]$SettingsObject)
-  if ($null -eq $SettingsObject) { return @() }
-
-  $stopValue = $null
-  try {
-    $p = $SettingsObject.PSObject.Properties["Stop"]
-    if ($null -ne $p) { $stopValue = $p.Value }
-  } catch {}
-
-  $rules = Ensure-ArrayValue $stopValue
+function Get-ClaudeStopHookCommandsFromRulesValue {
+  param([AllowNull()][object]$RulesValue)
+  $rules = Ensure-ArrayValue $RulesValue
   $commands = New-Object System.Collections.Generic.List[string]
   foreach ($rule in $rules) {
     if ($null -eq $rule) { continue }
@@ -1139,6 +1169,57 @@ function Get-ClaudeStopHookCommands {
     }
   }
   return @($commands.ToArray())
+}
+
+function Get-ClaudeStopHookCommands {
+  param([AllowNull()][object]$SettingsObject)
+  if ($null -eq $SettingsObject) { return @() }
+
+  $hooksObj = $null
+  try {
+    $p = $SettingsObject.PSObject.Properties["hooks"]
+    if ($null -ne $p) { $hooksObj = $p.Value }
+  } catch {}
+  if ($null -eq $hooksObj) { return @() }
+
+  $stopValue = $null
+  try {
+    $p = $hooksObj.PSObject.Properties["Stop"]
+    if ($null -ne $p) { $stopValue = $p.Value }
+  } catch {}
+
+  return @(Get-ClaudeStopHookCommandsFromRulesValue -RulesValue $stopValue)
+}
+
+function Get-ClaudeStopHookCommandsLegacy {
+  param([AllowNull()][object]$SettingsObject)
+  if ($null -eq $SettingsObject) { return @() }
+
+  $stopValue = $null
+  try {
+    $p = $SettingsObject.PSObject.Properties["Stop"]
+    if ($null -ne $p) { $stopValue = $p.Value }
+  } catch {}
+
+  return @(Get-ClaudeStopHookCommandsFromRulesValue -RulesValue $stopValue)
+}
+
+function Get-ClaudeStopHookRuleKey {
+  param([AllowNull()][object]$Rule)
+  if ($null -eq $Rule) { return "" }
+
+  $matcher = ""
+  try { if ($null -ne $Rule.matcher) { $matcher = $Rule.matcher.ToString() } } catch {}
+
+  $cmds = @(Get-ClaudeStopHookCommandsFromRulesValue -RulesValue @($Rule) | ForEach-Object { Normalize-CommandForCompare $_ })
+  $cmds = @($cmds | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+  if ($cmds.Count -gt 0) {
+    $m = $matcher.Trim()
+    try { $m = $m.ToLowerInvariant() } catch {}
+    return ($m + "|" + ($cmds -join ";"))
+  }
+
+  try { return ($Rule | ConvertTo-Json -Depth 10 -Compress) } catch { return "" }
 }
 
 function Test-JsonTextValid {
@@ -1167,12 +1248,34 @@ function Check-ClaudeStopHook {
     $settingsText = Get-Content -LiteralPath $settingsPath -Raw -ErrorAction Stop
     $settings = $settingsText | ConvertFrom-Json -ErrorAction Stop
 
+    $hooksObj = $null
+    $hooksIsObject = $false
+    try {
+      $p = $settings.PSObject.Properties["hooks"]
+      if ($null -ne $p) { $hooksObj = $p.Value }
+      if ($null -ne $hooksObj -and ($hooksObj -is [System.Management.Automation.PSCustomObject] -or $hooksObj -is [hashtable])) {
+        $hooksIsObject = $true
+      } else {
+        $hooksObj = $null
+      }
+    } catch {}
+
     $stopValue = $null
     $stopIsArray = $false
+    if ($hooksIsObject) {
+      try {
+        $p = $hooksObj.PSObject.Properties["Stop"]
+        if ($null -ne $p) { $stopValue = $p.Value }
+        if ($null -ne $stopValue) { $stopIsArray = ($stopValue -is [System.Array]) }
+      } catch {}
+    }
+
+    $legacyStopValue = $null
+    $legacyStopIsArray = $false
     try {
       $p = $settings.PSObject.Properties["Stop"]
-      if ($null -ne $p) { $stopValue = $p.Value }
-      if ($null -ne $stopValue) { $stopIsArray = ($stopValue -is [System.Array]) }
+      if ($null -ne $p) { $legacyStopValue = $p.Value }
+      if ($null -ne $legacyStopValue) { $legacyStopIsArray = ($legacyStopValue -is [System.Array]) }
     } catch {}
 
     $notifyPs1Path = Resolve-AiChatNotifyPs1Path
@@ -1194,28 +1297,49 @@ function Check-ClaudeStopHook {
 
     if ($matched) {
       if ($stopIsArray) {
-        Set-Status "Stop hook 已配置并匹配：$settingsPath"
+        Set-Status "Stop hook 已配置并匹配（hooks.Stop）：$settingsPath"
         return
       }
 
       [System.Windows.MessageBox]::Show(
-        "检测到 Stop hook 命令匹配，但 settings.local.json 的 Stop 配置结构不是数组（应为 Stop: [ ... ]）。`r`n`r`nClaude Code 可能不会执行该 hook。`r`n`r`n请点击 [保存并写入 Stop hook] 进行修复。",
-        "Stop hook 结构不正确",
+        "检测到 hooks.Stop 命令匹配，但 settings.local.json 的 hooks.Stop 结构不是数组（应为 hooks: { Stop: [ ... ] }）。`r`n`r`nClaude Code 可能不会执行该 hook。`r`n`r`n请点击 [保存并写入 Stop hook] 进行修复。",
+        "hooks.Stop 结构不正确",
         "OK",
         "Warning"
       ) | Out-Null
-      Set-Status "Stop hook 命令匹配但结构不正确：请点击 [保存并写入 Stop hook] 修复。"
+      Set-Status "Stop hook 命令匹配但 hooks.Stop 结构不正确：请点击 [保存并写入 Stop hook] 修复。"
       return
     }
 
-    if ($existingCommands.Count -eq 0) {
-      Set-Status "未检测到 Stop hook：$settingsPath"
+    $legacyCommands = @(Get-ClaudeStopHookCommandsLegacy -SettingsObject $settings)
+    $legacyMatched = $false
+    foreach ($cmd in $legacyCommands) {
+      if ((Normalize-CommandForCompare $cmd) -eq $expectedNorm) { $legacyMatched = $true; break }
+    }
+
+    if ($legacyMatched) {
+      $tip = if ($legacyStopIsArray) { "" } else { "`r`n`r`n另外：检测到旧版 Stop（顶层）结构不是数组，建议一并修复。" }
+      [System.Windows.MessageBox]::Show(
+        "检测到旧版 Stop（顶层）命令匹配，但 Claude Code 只识别 hooks.Stop，因此不会执行旧版 Stop。$tip`r`n`r`n请点击 [保存并写入 Stop hook] 自动迁移到 hooks.Stop。",
+        "检测到旧版 Stop（需迁移）",
+        "OK",
+        "Warning"
+      ) | Out-Null
+      Set-Status "检测到旧版 Stop（顶层）命令匹配：请点击 [保存并写入 Stop hook] 迁移到 hooks.Stop。"
       return
     }
 
-    $preview = ($existingCommands | Select-Object -First 2) -join "`r`n"
+    if ($existingCommands.Count -eq 0 -and $legacyCommands.Count -eq 0) {
+      Set-Status "未检测到 Stop hook（hooks.Stop）：$settingsPath"
+      return
+    }
+
+    $preview = (($existingCommands | Select-Object -First 2) -join "`r`n")
+    if ([string]::IsNullOrWhiteSpace($preview) -and $legacyCommands.Count -gt 0) {
+      $preview = (($legacyCommands | Select-Object -First 2) -join "`r`n")
+    }
     [System.Windows.MessageBox]::Show(
-      "检测到 Stop hooks，但未匹配当前配置器生成的命令。`r`n`r`n当前（settings.local.json，最多展示2条）：`r`n$preview`r`n`r`n期望（当前配置器）：`r`n$expected`r`n`r`n如需更新，请点击 [保存并写入 Stop hook]。",
+      "检测到 Stop hooks（hooks.Stop 或旧版 Stop），但未匹配当前配置器生成的命令。`r`n`r`n当前（settings.local.json，最多展示2条）：`r`n$preview`r`n`r`n期望（当前配置器）：`r`n$expected`r`n`r`n如需更新，请点击 [保存并写入 Stop hook]。",
       "Stop hook 不一致",
       "OK",
       "Warning"
@@ -1317,7 +1441,7 @@ function Write-ClaudeStopHook {
   $logPathToUse = Get-NotifyLogPathFromUI
   $command = Build-ClaudeStopHookCommand -NotifyPs1Path $notifyPs1Path -ConfigPathToUse $configPathToUse -LogPathToUse $logPathToUse
 
-  $risk = "可能影响 Claude Code 的 hooks 行为；将创建备份并插入/追加 Stop hook。"
+  $risk = "可能影响 Claude Code 的 hooks 行为；将创建备份并写入 hooks.Stop（并自动迁移旧版 Stop）。"
   if (-not (Confirm-Dangerous -Operation "修改 Claude Code 配置（写入 Stop hook）" -Impact $settingsPath -Risk $risk)) {
     Set-Status "已取消写入 Stop hook。"
     return $false
@@ -1341,26 +1465,40 @@ function Write-ClaudeStopHook {
       $settings = [pscustomobject]@{}
     }
 
+    $hooksObj = $null
+    try {
+      $p = $settings.PSObject.Properties["hooks"]
+      if ($null -ne $p) { $hooksObj = $p.Value }
+    } catch {}
+    if ($null -ne $hooksObj -and -not ($hooksObj -is [System.Management.Automation.PSCustomObject] -or $hooksObj -is [hashtable])) {
+      [System.Windows.MessageBox]::Show(
+        "检测到 settings.local.json 的 hooks 字段不是对象，无法安全写入。请手动修复 hooks 字段后重试（或移除该字段）。",
+        "写入失败",
+        "OK",
+        "Error"
+      ) | Out-Null
+      return $false
+    }
+    if ($null -eq $hooksObj) {
+      $hooksObj = [pscustomobject]@{}
+      $settings | Add-Member -NotePropertyName "hooks" -NotePropertyValue $hooksObj -Force
+    }
+
     $stopValue = $null
     $stopIsArray = $false
     try {
-      $p = $settings.PSObject.Properties["Stop"]
+      $p = $hooksObj.PSObject.Properties["Stop"]
       if ($null -ne $p) { $stopValue = $p.Value }
       if ($null -ne $stopValue) { $stopIsArray = ($stopValue -is [System.Array]) }
     } catch {}
 
     $expectedNorm = Normalize-CommandForCompare $command
-    $existingCommands = @(Get-ClaudeStopHookCommands -SettingsObject $settings)
-    $hasExpected = $false
-    foreach ($cmd in $existingCommands) {
-      if ((Normalize-CommandForCompare $cmd) -eq $expectedNorm) { $hasExpected = $true; break }
-    }
 
-    # 命令已存在但 Stop 结构不是数组时，仍需要写回修复为数组结构（否则 Claude Code 可能不执行 hooks）。
-    if ($hasExpected -and $stopIsArray) {
-      Set-Status "Stop hook 已存在且匹配：$settingsPath"
-      return $true
-    }
+    $legacyStopValue = $null
+    try {
+      $p = $settings.PSObject.Properties["Stop"]
+      if ($null -ne $p) { $legacyStopValue = $p.Value }
+    } catch {}
 
     $newRule = [pscustomobject]@{
       matcher = "*"
@@ -1372,12 +1510,44 @@ function Write-ClaudeStopHook {
       )
     }
 
-    # 规范化为数组：Stop 必须是 JSON 数组（"Stop": [ ... ]）。
+    # 规范化为数组：hooks.Stop 必须是 JSON 数组（"hooks": { "Stop": [ ... ] }）。
     $stopRules = @()
     if ($null -ne $stopValue) { $stopRules = @($stopValue) }
     $stopRules = @($stopRules | Where-Object { $null -ne $_ })
+
+    # 迁移旧版顶层 Stop -> hooks.Stop（Claude Code 只识别 hooks 字段）。
+    $legacyRules = Ensure-ArrayValue $legacyStopValue
+    $legacyRules = @($legacyRules | Where-Object { $null -ne $_ })
+    if ($legacyRules.Count -gt 0) {
+      $seen = @{}
+      foreach ($r in $stopRules) {
+        $k = Get-ClaudeStopHookRuleKey -Rule $r
+        if (-not [string]::IsNullOrWhiteSpace($k)) { $seen[$k] = $true }
+      }
+      foreach ($r in $legacyRules) {
+        $k = Get-ClaudeStopHookRuleKey -Rule $r
+        if ([string]::IsNullOrWhiteSpace($k) -or -not $seen.ContainsKey($k)) {
+          $stopRules += $r
+          if (-not [string]::IsNullOrWhiteSpace($k)) { $seen[$k] = $true }
+        }
+      }
+      try { $settings.PSObject.Properties.Remove("Stop") } catch {}
+    }
+
+    $existingCommands = @(Get-ClaudeStopHookCommandsFromRulesValue -RulesValue $stopRules)
+    $hasExpected = $false
+    foreach ($cmd in $existingCommands) {
+      if ((Normalize-CommandForCompare $cmd) -eq $expectedNorm) { $hasExpected = $true; break }
+    }
+
+    # 命令已存在且 hooks.Stop 已是数组，且无需迁移旧版 Stop 时，避免不必要的写回。
+    if ($hasExpected -and $stopIsArray -and $legacyRules.Count -eq 0) {
+      Set-Status "Stop hook 已存在且匹配（hooks.Stop）：$settingsPath"
+      return $true
+    }
+
     if (-not $hasExpected) { $stopRules += $newRule }
-    $settings | Add-Member -NotePropertyName "Stop" -NotePropertyValue $stopRules -Force
+    $hooksObj | Add-Member -NotePropertyName "Stop" -NotePropertyValue $stopRules -Force
 
     $updatedText = $settings | ConvertTo-Json -Depth 10
     Write-Utf8NoBomTextFile -Path $settingsPath -Text $updatedText
@@ -1403,9 +1573,9 @@ function Write-ClaudeStopHook {
     }
 
     if (-not [string]::IsNullOrWhiteSpace($backup)) {
-      Set-Status "已写入 Stop hook（已备份：$backup）。重启 Claude Code 生效。"
+      Set-Status "已写入 Stop hook（hooks.Stop，已备份：$backup）。重启 Claude Code 生效。"
     } else {
-      Set-Status "已写入 Stop hook。重启 Claude Code 生效。"
+      Set-Status "已写入 Stop hook（hooks.Stop）。重启 Claude Code 生效。"
     }
     return $true
   } catch {
@@ -1858,6 +2028,19 @@ if ($controls.GoCodexTabBtn) {
   })
 }
 
+if ($controls.GoClaudeTabBtn) {
+  $controls.GoClaudeTabBtn.Add_Click({
+    try {
+      if ($controls.MainTabs -and $controls.InstallTabItem) {
+        $controls.MainTabs.SelectedItem = $controls.InstallTabItem
+        Set-Status "请在此页点击 [保存并写入 Stop hook]，然后重启 Claude Code 生效。"
+      }
+    } catch {
+      [System.Windows.MessageBox]::Show($_.Exception.Message, "跳转失败", "OK", "Error") | Out-Null
+    }
+  })
+}
+
 $controls.InstallBtn.Add_Click({
   $installScript = Join-Path $repoRoot "install.ps1"
   if (-not (Test-Path -LiteralPath $installScript)) {
@@ -1984,6 +2167,10 @@ if ($controls.OpenClaudeSettingsBtn) {
   $controls.OpenClaudeSettingsBtn.Add_Click({ Open-ClaudeSettings })
 }
 
+if ($controls.OpenClaudeDebugBtn) {
+  $controls.OpenClaudeDebugBtn.Add_Click({ Open-ClaudeDebug })
+}
+
 if ($controls.CheckClaudeStopHookBtn) {
   $controls.CheckClaudeStopHookBtn.Add_Click({ Check-ClaudeStopHook })
 }
@@ -2000,5 +2187,5 @@ if ($controls.WriteClaudeStopHookBtn) {
   $controls.WriteClaudeStopHookBtn.Add_Click({ Save-AndWriteClaudeStopHook })
 }
 
-Set-Status "就绪：先测试并保存配置，然后写入 Codex notify / Claude Stop hook。"
+Set-Status "就绪：先测试并保存配置，然后写入 Codex notify / Claude hooks.Stop。"
 [void]$window.ShowDialog()
