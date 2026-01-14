@@ -570,6 +570,32 @@ $xaml = @'
 
             <Separator Margin="0,16,0,12" />
 
+            <TextBlock Text="调试（日志）" FontWeight="Bold" />
+            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#6B7280"
+              Text="可选：启用 notify 的调试日志（-LogPath）；Codex notify 与 Claude Stop hook 都会复用此设置。" />
+            <Grid Margin="0,10,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="120" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <TextBlock Grid.Column="0" Text="调试日志" VerticalAlignment="Center" Margin="0,6,0,0" />
+              <Grid Grid.Column="1" Margin="8,6,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <CheckBox x:Name="EnableCodexLogBox" Grid.Column="0" Content="启用（-LogPath）" VerticalAlignment="Center" />
+                <TextBox x:Name="CodexLogPathBox" Grid.Column="1" Margin="8,0,8,0"
+                  ToolTip="日志文件路径；写入 notify/Stop hook 时会带上 -LogPath" />
+                <Button x:Name="OpenCodexLogBtn" Grid.Column="2" Content="打开日志" Padding="10,6"
+                  ToolTip="用记事本打开日志文件（不存在会自动创建）" />
+              </Grid>
+            </Grid>
+
+            <Separator Margin="0,16,0,12" />
+
             <TextBlock Text="Codex 集成（自动写入 notify 到 config.toml）" FontWeight="Bold" />
             <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#6B7280"
               Text="推荐：点击“保存并写入 notify” → 重启 Codex → 点击“检查 notify”确认已生效。" />
@@ -580,7 +606,6 @@ $xaml = @'
                 <ColumnDefinition Width="Auto" />
               </Grid.ColumnDefinitions>
               <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -603,21 +628,7 @@ $xaml = @'
                   ToolTip="先保存 config.json，再写入（或覆盖）config.toml 的 notify，并创建 .bak 备份" />
               </StackPanel>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Text="调试日志" VerticalAlignment="Center" Margin="0,6,0,0" />
-              <Grid Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,6,0,0">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <CheckBox x:Name="EnableCodexLogBox" Grid.Column="0" Content="启用（-LogPath）" VerticalAlignment="Center" />
-                <TextBox x:Name="CodexLogPathBox" Grid.Column="1" Margin="8,0,8,0"
-                  ToolTip="日志文件路径；写入 notify 时会带上 -LogPath" />
-                <Button x:Name="OpenCodexLogBtn" Grid.Column="2" Content="打开日志" Padding="10,6"
-                  ToolTip="用记事本打开日志文件（不存在会自动创建）" />
-              </Grid>
-
-              <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,8,0,0"
+              <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,8,0,0"
                 Foreground="#6B7280" TextWrapping="Wrap"
                 Text="会创建 .bak 备份，并覆盖/插入 notify 设置；写入后需重启 Codex 生效。" />
             </Grid>
