@@ -1655,15 +1655,17 @@ function Apply-ConfigToUI {
     }
   }
 
-  $providers = @("auto", "codex", "claude-code", "generic")
+  $providers = @("codex", "claude-code")
   $controls.ProviderBox.ItemsSource = $providers
   $controls.MethodBox.ItemsSource = @("popup", "balloon")
 
   $d = $config.defaults
   $p = $config.popup
 
-  $provider = if ($null -ne $d.provider) { $d.provider.ToString() } else { "codex" }
-  if (-not $providers.Contains($provider)) { $providers += $provider; $controls.ProviderBox.ItemsSource = $providers }
+  $providerRaw = if ($null -ne $d.provider) { $d.provider.ToString() } else { "codex" }
+  $provider = $providerRaw.Trim().ToLowerInvariant()
+  if ($provider -eq "claudecode" -or $provider -eq "claude_code") { $provider = "claude-code" }
+  if (-not $providers.Contains($provider)) { $provider = "codex" }
   $controls.ProviderBox.SelectedItem = $provider
 
   $method = if ($null -ne $d.method) { $d.method.ToString() } else { "popup" }
