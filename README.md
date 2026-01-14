@@ -37,7 +37,7 @@ ai-chat-notify-config
 - 一键测试 `popup` / `balloon`
 - 复制“集成片段”到剪贴板（已改为更稳的 `powershell.exe -File ... -EventJson` 形式）
 - Codex 集成：打开/检查/复制 `notify`，保存并写入 `config.toml`（自动备份/可恢复；重启 Codex 生效）
-- Claude Code 集成：打开/检查/复制 Stop hook，保存并写入 `%USERPROFILE%\.claude\settings.local.json` 的 `hooks.Stop`（自动备份/可恢复；重启 Claude Code 生效）
+- Claude Code 集成：打开/检查/复制 Stop hook，保存并写入（全局）`%USERPROFILE%\.claude\settings.json` 或（当前项目）`.claude\settings.local.json` 的 `hooks.Stop`（自动备份/可恢复；重启 Claude Code 生效）
 - Claude debug：一键打开 `%USERPROFILE%\.claude\debug` 目录（排查 hooks 是否匹配/执行）
 - 调试日志：可视化开关 `-LogPath`，并支持一键打开日志文件
 
@@ -254,7 +254,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 
 - `codex` 无法启动（config.toml parse error）：先检查 `config.toml` 的 `notify = [...]` 是否缺逗号/引号；如果是配置器写入导致，直接用配置器的“恢复最近备份”回滚。
 - 对话结束不弹窗：确认已重启 `codex`；检查 `config.toml` 是否存在 `notify` 且末尾包含 `"-EventJson"`；用配置器点“检查 notify”确认是否匹配。
-- Claude Code Stop hook 不触发：确认已重启 `claude`；检查 `%USERPROFILE%\.claude\settings.local.json` 是否存在 `hooks.Stop`（旧版顶层 `Stop` 不生效，可用配置器一键迁移）；确认 workspace trust 已接受（否则 hooks 会被跳过）；可点击“打开 Claude debug”查看 Claude debug 日志；必要时启用“调试日志（-LogPath）”查看 ai-chat-notify 日志。
+- Claude Code Stop hook 不触发：确认已重启 `claude`；检查（全局）`%USERPROFILE%\.claude\settings.json` 或（当前项目）`.claude\settings.local.json` 是否存在 `hooks.Stop`（旧版顶层 `Stop` 不生效，可用配置器一键迁移）；确认 workspace trust 已接受（否则 hooks 会被跳过）；可点击“打开 Claude debug”查看 Claude debug 日志；必要时启用“调试日志（-LogPath）”查看 ai-chat-notify 日志。
 - 弹窗内容和配置器保存的不一致：确认 `notify` 里 `-ConfigPath` 指向的就是你保存的 `config.json`；修改配置后建议点“保存并写入 notify”同步（避免还在用旧路径）。
 - 日志为空/没有生成：在配置器勾选“调试日志（-LogPath）”并写入 notify，重启 `codex` 后再触发一次；或临时设置环境变量 `AI_CHAT_NOTIFY_LOG`（兼容 `CODEX_NOTIFY_LOG`）。
 - `balloon` 不显示：优先改用 `popup`（`balloon` 依赖系统通知/托盘能力与相关设置）。

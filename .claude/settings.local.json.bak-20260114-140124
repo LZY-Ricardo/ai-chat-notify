@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit:*)",
+      "Skill(cn-commit)",
+      "Skill(cn-commit:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(python:*)"
+    ]
+  }
+}

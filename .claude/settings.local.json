@@ -1,11 +1,24 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(git commit:*)",
-      "Skill(cn-commit)",
-      "Skill(cn-commit:*)",
-      "Bash(git rev-parse:*)",
-      "Bash(python:*)"
-    ]
-  }
+    "permissions":  {
+                        "allow":  [
+                                      "Bash(git commit:*)",
+                                      "Skill(cn-commit)",
+                                      "Skill(cn-commit:*)",
+                                      "Bash(git rev-parse:*)",
+                                      "Bash(python:*)"
+                                  ]
+                    },
+    "hooks":  {
+                  "Stop":  [
+                               {
+                                   "matcher":  "*",
+                                   "hooks":  [
+                                                 {
+                                                     "type":  "command",
+                                                     "command":  "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:/Users/lenovo/AppData/Local/ai-chat-notify/bin/ai-chat-notify.ps1\" -ConfigPath \"C:/Users/lenovo/AppData/Local/ai-chat-notify/config.json\" -LogPath \"C:/Users/lenovo/AppData/Local/ai-chat-notify/ai-chat-notify.log\" -Provider claude-code"
+                                                 }
+                                             ]
+                               }
+                           ]
+              }
 }
