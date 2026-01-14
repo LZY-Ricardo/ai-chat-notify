@@ -1,5 +1,5 @@
 {
-  "provider": "claude-code",
+  "provider": "claudecode",
   "type": "turn_complete",
   "title": "Claude Code",
   "subtitle": "Turn complete: Example notification",
@@ -8,4 +8,3 @@
   "durationSeconds": 3,
   "noSound": true
 }
-

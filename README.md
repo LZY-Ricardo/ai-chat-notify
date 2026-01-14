@@ -36,6 +36,7 @@ ai-chat-notify-config
 - 编辑并保存 `config.json`（默认路径见下文）
 - 一键测试 `popup` / `balloon`
 - 复制“集成片段”到剪贴板（已改为更稳的 `powershell.exe -File ... -EventJson` 形式）
+- Provider：目前仅提供 `codex` / `claudecode` 两项（其余来源按通用事件处理）
 - Codex 集成：打开/检查/复制 `notify`，保存并写入 `config.toml`（自动备份/可恢复；重启 Codex 生效）
 - Claude Code 集成：打开/检查/复制 Stop hook，保存并写入（全局）`%USERPROFILE%\.claude\settings.json` 或（当前项目）`.claude\settings.local.json` 的 `hooks.Stop`（自动备份/可恢复；重启 Claude Code 生效）
 - Claude debug：一键打开 `%USERPROFILE%\.claude\debug` 目录（排查 hooks 是否匹配/执行）
@@ -55,7 +56,7 @@ ai-chat-notify-config
 #### 新手流程（接入 Claude Code，hooks.Stop）
 
 1) 运行配置器：`.\ai-chat-notify-config.cmd`  
-2) 在“基础/样式”页把 `Provider` 选为 `claude-code`（并按需修改 Title/Subtitle/Message）  
+2) 在“基础/样式”页把 `Provider` 选为 `claudecode`（目前仅支持 `codex` / `claudecode`；并按需修改 Title/Subtitle/Message）  
 3) 右下角点击“保存配置”  
 4) 点击“去配置 Claude” → 在“安装/集成”页的 **Claude Code 集成（hooks.Stop）** 区域点击“保存并写入 Stop hook”  
 5) 重启 `claude`（Claude Code）生效  
@@ -217,9 +218,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 `ai-chat-notify` 会优先读取这些字段（按需提供即可）。目前主要面向 **turn complete** 场景；其他类型字段先按通用结构保留，后续逐步增强。
 
 ```json
-  {
-  "provider": "codex",
-  "type": "agent-turn-complete | turn_complete | ...",
+{
+  "provider": "codex | claudecode",
+  "type": "agent-turn-complete | stop | ...",
   "title": "标题（可选）",
   "subtitle": "副标题（可选）",
   "message": "正文（可选）",
@@ -228,6 +229,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
   "noSound": true
 }
 ```
+
+> 提示：配置器的 Provider 下拉目前仅提供 `codex` / `claudecode`。
 
 ### Codex 兼容
 

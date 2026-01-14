@@ -161,13 +161,14 @@ function Resolve-Provider {
   if (-not [string]::IsNullOrWhiteSpace($ProviderParam)) {
     $raw = $ProviderParam.Trim()
     $normalized = $raw.ToLowerInvariant() -replace "[ _]", "-"
-    if ($normalized -ne "auto") {
-      if ($normalized -eq "claude") { return "claude-code" }
-      if ($normalized -eq "claude-code") { return "claude-code" }
-      if ($normalized -eq "codex") { return "codex" }
-      if ($normalized -eq "generic") { return "generic" }
-      return $normalized
-    }
+      if ($normalized -ne "auto") {
+        if ($normalized -eq "claude") { return "claude-code" }
+        if ($normalized -eq "claude-code") { return "claude-code" }
+        if ($normalized -eq "claudecode") { return "claude-code" }
+        if ($normalized -eq "codex") { return "codex" }
+        if ($normalized -eq "generic") { return "generic" }
+        return $normalized
+      }
   }
   if ($null -eq $Event) { return "generic" }
 
@@ -177,6 +178,7 @@ function Resolve-Provider {
     $normalized = $raw.ToLowerInvariant() -replace "[ _]", "-"
     if ($normalized -eq "claude") { return "claude-code" }
     if ($normalized -eq "claude-code") { return "claude-code" }
+    if ($normalized -eq "claudecode") { return "claude-code" }
     if ($normalized -eq "codex") { return "codex" }
     return $normalized
   }

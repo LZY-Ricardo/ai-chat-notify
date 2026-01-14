@@ -1173,7 +1173,7 @@ function Build-ClaudeStopHookCommand {
     $argv.Add("`"$log`"")
   }
   $argv.Add("-Provider")
-  $argv.Add("claude-code")
+  $argv.Add("claudecode")
 
   return ($argv -join " ")
 }
@@ -1655,7 +1655,7 @@ function Apply-ConfigToUI {
     }
   }
 
-  $providers = @("codex", "claude-code")
+  $providers = @("codex", "claudecode")
   $controls.ProviderBox.ItemsSource = $providers
   $controls.MethodBox.ItemsSource = @("popup", "balloon")
 
@@ -1664,7 +1664,7 @@ function Apply-ConfigToUI {
 
   $providerRaw = if ($null -ne $d.provider) { $d.provider.ToString() } else { "codex" }
   $provider = $providerRaw.Trim().ToLowerInvariant()
-  if ($provider -eq "claudecode" -or $provider -eq "claude_code") { $provider = "claude-code" }
+  if ($provider -eq "claude-code" -or $provider -eq "claude_code" -or $provider -eq "claude") { $provider = "claudecode" }
   if (-not $providers.Contains($provider)) { $provider = "codex" }
   $controls.ProviderBox.SelectedItem = $provider
 
