@@ -83,15 +83,71 @@ function Save-JsonFile {
 
 function New-DefaultConfig {
   return [ordered]@{
-    version  = 1
+    version  = 2
     defaults = [ordered]@{
       provider        = "codex"
-      title           = "Codex"
+      title           = "AI Chat"
       subtitle        = "任务已完成"
       message         = "请到 CLI/IDE 中查看详细信息"
       method          = "popup"
       durationSeconds = 2
       noSound         = $true
+    }
+    providers = [ordered]@{
+      codex = [ordered]@{
+        title           = "Codex"
+        subtitle        = "任务已完成"
+        message         = "请到 CLI/IDE 中查看详细信息"
+        method          = "popup"
+        durationSeconds = 2
+        noSound         = $true
+        popup           = [ordered]@{
+          width               = 360
+          minHeight           = 200
+          fontFamily          = "Microsoft YaHei UI"
+          titleFontSize       = 20
+          subtitleFontSize    = 18
+          messageFontSize     = 14
+          titleColor          = "#111827"
+          subtitleColor       = "#111827"
+          messageColor        = "#374151"
+          backgroundColor     = "#FFFFFF"
+          borderColor         = "#E6E8EB"
+          dividerColor        = "#EEF0F2"
+          accentColor         = "#2B71D8"
+          iconText            = "i"
+          iconTextColor       = "#FFFFFF"
+          iconBackgroundColor = "#2B71D8"
+          okText              = "确定"
+        }
+      }
+      claudecode = [ordered]@{
+        title           = "Claude Code"
+        subtitle        = "Task Complete"
+        message         = "Check your CLI/IDE for details."
+        method          = "popup"
+        durationSeconds = 2
+        noSound         = $true
+        popup           = [ordered]@{
+          width               = 400
+          minHeight           = 180
+          fontFamily          = "Segoe UI"
+          titleFontSize       = 18
+          subtitleFontSize    = 16
+          messageFontSize     = 13
+          titleColor          = "#1F2937"
+          subtitleColor       = "#4B5563"
+          messageColor        = "#6B7280"
+          backgroundColor     = "#FAFAFA"
+          borderColor         = "#D1D5DB"
+          dividerColor        = "#E5E7EB"
+          accentColor         = "#7C3AED"
+          iconText            = "C"
+          iconTextColor       = "#FFFFFF"
+          iconBackgroundColor = "#7C3AED"
+          okText              = "OK"
+        }
+      }
     }
     popup    = [ordered]@{
       width               = 360
@@ -112,6 +168,100 @@ function New-DefaultConfig {
       iconBackgroundColor = "#2B71D8"
       okText              = "确定"
     }
+  }
+}
+
+function Migrate-ConfigToV2 {
+  param([Parameter(Mandatory = $true)][object]$V1Config)
+
+  try {
+    $v1 = $V1Config
+    $defaults = if ($null -ne $v1.defaults) { $v1.defaults } else { @{} }
+    $popup = if ($null -ne $v1.popup) { $v1.popup } else { @{} }
+
+    # Determine the primary provider from defaults
+    $providerRaw = if ($null -ne $defaults.provider) { $defaults.provider.ToString() } else { "codex" }
+    $provider = $providerRaw.Trim().ToLowerInvariant()
+    if ($provider -eq "claude-code" -or $provider -eq "claude_code" -or $provider -eq "claude") { $provider = "claudecode" }
+    if ($provider -ne "codex" -and $provider -ne "claudecode") { $provider = "codex" }
+
+    # Create provider-specific config from v1 settings
+    $providerConfig = [ordered]@{
+      title           = if ($null -ne $defaults.title) { $defaults.title.ToString() } else { "AI Chat" }
+      subtitle        = if ($null -ne $defaults.subtitle) { $defaults.subtitle.ToString() } else { "任务已完成" }
+      message         = if ($null -ne $defaults.message) { $defaults.message.ToString() } else { "请到 CLI/IDE 中查看详细信息" }
+      method          = if ($null -ne $defaults.method) { $defaults.method.ToString() } else { "popup" }
+      durationSeconds = if ($null -ne $defaults.durationSeconds) { [int]$defaults.durationSeconds } else { 2 }
+      noSound         = if ($null -ne $defaults.noSound) { [bool]$defaults.noSound } else { $true }
+      popup           = $popup
+    }
+
+    # Create providers object with both codex and claudecode
+    $providers = [ordered]@{
+      codex = [ordered]@{
+        title           = "Codex"
+        subtitle        = "任务已完成"
+        message         = "请到 CLI/IDE 中查看详细信息"
+        method          = "popup"
+        durationSeconds = 2
+        noSound         = $true
+        popup           = Copy-PopupConfig $popup
+      }
+      claudecode = [ordered]@{
+        title           = "Claude Code"
+        subtitle        = "Task Complete"
+        message         = "Check your CLI/IDE for details."
+        method          = "popup"
+        durationSeconds = 2
+        noSound         = $true
+        popup           = Copy-PopupConfig $popup
+      }
+    }
+
+    # Override the primary provider with v1 settings
+    $providers[$provider] = $providerConfig
+
+    # Build v2 config
+    return [ordered]@{
+      version  = 2
+      defaults = [ordered]@{
+        provider        = $provider
+        title           = "AI Chat"
+        subtitle        = "任务已完成"
+        message         = "请到 CLI/IDE 中查看详细信息"
+        method          = "popup"
+        durationSeconds = 2
+        noSound         = $true
+      }
+      providers = $providers
+      popup    = $popup
+    }
+  } catch {
+    return $null
+  }
+}
+
+function Copy-PopupConfig {
+  param([Parameter(Mandatory = $true)][object]$Popup)
+
+  return [ordered]@{
+    width               = if ($null -ne $Popup.width) { [int]$Popup.width } else { 360 }
+    minHeight           = if ($null -ne $Popup.minHeight) { [int]$Popup.minHeight } else { 200 }
+    fontFamily          = if ($null -ne $Popup.fontFamily) { $Popup.fontFamily.ToString() } else { "Microsoft YaHei UI" }
+    titleFontSize       = if ($null -ne $Popup.titleFontSize) { [double]$Popup.titleFontSize } else { 20 }
+    subtitleFontSize    = if ($null -ne $Popup.subtitleFontSize) { [double]$Popup.subtitleFontSize } else { 18 }
+    messageFontSize     = if ($null -ne $Popup.messageFontSize) { [double]$Popup.messageFontSize } else { 14 }
+    titleColor          = if ($null -ne $Popup.titleColor) { $Popup.titleColor.ToString() } else { "#111827" }
+    subtitleColor       = if ($null -ne $Popup.subtitleColor) { $Popup.subtitleColor.ToString() } else { "#111827" }
+    messageColor        = if ($null -ne $Popup.messageColor) { $Popup.messageColor.ToString() } else { "#374151" }
+    backgroundColor     = if ($null -ne $Popup.backgroundColor) { $Popup.backgroundColor.ToString() } else { "#FFFFFF" }
+    borderColor         = if ($null -ne $Popup.borderColor) { $Popup.borderColor.ToString() } else { "#E6E8EB" }
+    dividerColor        = if ($null -ne $Popup.dividerColor) { $Popup.dividerColor.ToString() } else { "#EEF0F2" }
+    accentColor         = if ($null -ne $Popup.accentColor) { $Popup.accentColor.ToString() } else { "#2B71D8" }
+    iconText            = if ($null -ne $Popup.iconText) { $Popup.iconText.ToString() } else { "i" }
+    iconTextColor       = if ($null -ne $Popup.iconTextColor) { $Popup.iconTextColor.ToString() } else { "#FFFFFF" }
+    iconBackgroundColor = if ($null -ne $Popup.iconBackgroundColor) { $Popup.iconBackgroundColor.ToString() } else { "#2B71D8" }
+    okText              = if ($null -ne $Popup.okText) { $Popup.okText.ToString() } else { "确定" }
   }
 }
 
@@ -353,8 +503,25 @@ if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
 $loaded = Load-JsonFile $ConfigPath
 $config = if ($null -eq $loaded) { New-DefaultConfig } else { $loaded }
 
+# Auto-migrate v1 config to v2
+$configVersion = if ($null -ne $config.version) { [int]$config.version } else { 1 }
+if ($configVersion -lt 2) {
+  $migrated = Migrate-ConfigToV2 $config
+  if ($null -ne $migrated) {
+    $config = $migrated
+    # Auto-save migrated config
+    try {
+      Save-JsonFile $config $ConfigPath
+    } catch {}
+  }
+}
+
+# Store current config globally for use in Read-UIToConfig
+$script:CurrentConfig = $config
+
 if ($null -eq $config.defaults) { $config | Add-Member -NotePropertyName defaults -NotePropertyValue @{} }
 if ($null -eq $config.popup) { $config | Add-Member -NotePropertyName popup -NotePropertyValue @{} }
+if ($null -eq $config.providers) { $config | Add-Member -NotePropertyName providers -NotePropertyValue @{} }
 
 $xaml = @'
 <Window
@@ -1659,14 +1826,28 @@ function Apply-ConfigToUI {
   $controls.ProviderBox.ItemsSource = $providers
   $controls.MethodBox.ItemsSource = @("popup", "balloon")
 
-  $d = $config.defaults
-  $p = $config.popup
+  # Determine config version
+  $configVersion = if ($null -ne $config.version) { [int]$config.version } else { 1 }
 
+  $d = $config.defaults
   $providerRaw = if ($null -ne $d.provider) { $d.provider.ToString() } else { "codex" }
   $provider = $providerRaw.Trim().ToLowerInvariant()
   if ($provider -eq "claude-code" -or $provider -eq "claude_code" -or $provider -eq "claude") { $provider = "claudecode" }
   if (-not $providers.Contains($provider)) { $provider = "codex" }
   $controls.ProviderBox.SelectedItem = $provider
+
+  # For version 2, use provider-specific config if available
+  if ($configVersion -ge 2 -and $null -ne $config.providers) {
+    $providerConfig = $config.providers.$provider
+    if ($null -ne $providerConfig) {
+      $d = $providerConfig
+      $p = if ($null -ne $providerConfig.popup) { $providerConfig.popup } else { $config.popup }
+    } else {
+      $p = $config.popup
+    }
+  } else {
+    $p = $config.popup
+  }
 
   $method = if ($null -ne $d.method) { $d.method.ToString() } else { "popup" }
   $controls.MethodBox.SelectedItem = $method
@@ -1715,16 +1896,73 @@ function Apply-ConfigToUI {
 }
 
 function Read-UIToConfig {
-  $defaults = [ordered]@{
-    provider        = $controls.ProviderBox.SelectedItem
+  # Store reference to current config for preserving other provider settings
+  $currentConfig = $script:CurrentConfig
+
+  $provider = $controls.ProviderBox.SelectedItem
+
+  # Provider-specific configuration
+  $providerConfig = [ordered]@{
     title           = $controls.TitleBox.Text
     subtitle        = $controls.SubtitleBox.Text
     message         = $controls.MessageBox.Text
     method          = $controls.MethodBox.SelectedItem
     durationSeconds = [int](TryParse-Int $controls.DurationBox.Text 2)
     noSound         = [bool]$controls.NoSoundBox.IsChecked
+    popup           = [ordered]@{
+      width               = [int](TryParse-Int $controls.PopupWidthBox.Text 360)
+      minHeight           = [int](TryParse-Int $controls.PopupMinHeightBox.Text 200)
+      fontFamily          = $controls.FontFamilyBox.Text
+      titleFontSize       = [double](TryParse-Double $controls.TitleFontSizeBox.Text 20)
+      subtitleFontSize    = [double](TryParse-Double $controls.SubtitleFontSizeBox.Text 18)
+      messageFontSize     = [double](TryParse-Double $controls.MessageFontSizeBox.Text 14)
+      titleColor          = Normalize-HexColor $controls.TitleColorBox.Text
+      subtitleColor       = Normalize-HexColor $controls.SubtitleColorBox.Text
+      messageColor        = Normalize-HexColor $controls.MessageColorBox.Text
+      backgroundColor     = Normalize-HexColor $controls.BackgroundColorBox.Text
+      borderColor         = Normalize-HexColor $controls.BorderColorBox.Text
+      dividerColor        = Normalize-HexColor $controls.DividerColorBox.Text
+      accentColor         = Normalize-HexColor $controls.AccentColorBox.Text
+      iconText            = $controls.IconTextBox.Text
+      iconTextColor       = Normalize-HexColor $controls.IconTextColorBox.Text
+      iconBackgroundColor = Normalize-HexColor $controls.IconBgColorBox.Text
+      okText              = $controls.OkTextBox.Text
+    }
   }
 
+  # Preserve other provider configurations if they exist
+  $providers = [ordered]@{}
+  if ($null -ne $currentConfig -and $null -ne $currentConfig.providers) {
+    # Iterate over all provider names
+    $providerNames = @()
+    if ($currentConfig.providers -is [System.Management.Automation.PSCustomObject]) {
+      $providerNames = $currentConfig.providers.PSObject.Properties.Name
+    } elseif ($currentConfig.providers -is [hashtable] -or $currentConfig.providers -is [System.Collections.Specialized.OrderedDictionary]) {
+      $providerNames = $currentConfig.providers.Keys
+    }
+
+    foreach ($key in $providerNames) {
+      if ($key -ne $provider) {
+        # Deep copy the provider config to avoid reference issues
+        $providerData = $currentConfig.providers.$key
+        $providers[$key] = $providerData
+      }
+    }
+  }
+  $providers[$provider] = $providerConfig
+
+  # Default configuration (global fallback)
+  $defaults = [ordered]@{
+    provider        = $provider
+    title           = "AI Chat"
+    subtitle        = "任务已完成"
+    message         = "请到 CLI/IDE 中查看详细信息"
+    method          = "popup"
+    durationSeconds = 2
+    noSound         = $true
+  }
+
+  # Global popup config (fallback for providers without specific popup)
   $popup = [ordered]@{
     width               = [int](TryParse-Int $controls.PopupWidthBox.Text 360)
     minHeight           = [int](TryParse-Int $controls.PopupMinHeightBox.Text 200)
@@ -1751,8 +1989,9 @@ function Read-UIToConfig {
   }
 
   return [ordered]@{
-    version  = 1
+    version  = 2
     defaults = $defaults
+    providers = $providers
     popup    = $popup
     debug    = $debug
   }

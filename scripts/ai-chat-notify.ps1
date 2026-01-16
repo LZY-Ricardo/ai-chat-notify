@@ -85,6 +85,70 @@ function Get-FirstLine {
   return (($Text -split "(\r\n|\r|\n)")[0]).Trim()
 }
 
+function Get-ProviderConfig {
+  param(
+    [Parameter(Mandatory = $true)][AllowNull()][object]$NotifyConfig,
+    [Parameter(Mandatory = $true)][string]$Provider
+  )
+
+  if ($null -eq $NotifyConfig) { return $null }
+
+  # Version 2 configuration: provider-specific configs
+  $configVersion = if ($null -ne $NotifyConfig.version) { [int]$NotifyConfig.version } else { 1 }
+
+  if ($configVersion -ge 2) {
+    # Try to get provider-specific config
+    $providers = Get-ObjectProperty $NotifyConfig @("providers")
+    if ($null -ne $providers) {
+      $providerConfig = Get-ObjectProperty $providers @($Provider)
+      if ($null -ne $providerConfig) {
+        return $providerConfig
+      }
+    }
+  }
+
+  # Fallback to defaults
+  $defaults = Get-ObjectProperty $NotifyConfig @("defaults")
+  if ($null -ne $defaults) {
+    return $defaults
+  }
+
+  return $null
+}
+
+function Get-MergedPopupConfig {
+  param(
+    [Parameter(Mandatory = $true)][AllowNull()][object]$NotifyConfig,
+    [Parameter(Mandatory = $true)][string]$Provider
+  )
+
+  if ($null -eq $NotifyConfig) { return $null }
+
+  $configVersion = if ($null -ne $NotifyConfig.version) { [int]$NotifyConfig.version } else { 1 }
+
+  # For version 2+, check provider-specific popup config first
+  if ($configVersion -ge 2) {
+    $providers = Get-ObjectProperty $NotifyConfig @("providers")
+    if ($null -ne $providers) {
+      $providerConfig = Get-ObjectProperty $providers @($Provider)
+      if ($null -ne $providerConfig) {
+        $providerPopup = Get-ObjectProperty $providerConfig @("popup")
+        if ($null -ne $providerPopup) {
+          return $providerPopup
+        }
+      }
+    }
+  }
+
+  # Fallback to global popup config
+  $globalPopup = Get-ObjectProperty $NotifyConfig @("popup")
+  if ($null -ne $globalPopup) {
+    return $globalPopup
+  }
+
+  return $null
+}
+
 function Test-ToastNotificationsEnabled {
   try {
     $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications")
@@ -210,13 +274,9 @@ if ([string]::IsNullOrWhiteSpace($configPathValue)) {
 }
 
 $notifyConfig = Load-NotifyConfig $configPathValue
+
+# Get global default provider (for fallback)
 $configDefaults = if ($null -eq $notifyConfig) { $null } else { (Get-ObjectProperty $notifyConfig @("defaults")) }
-$configTitle = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("title")) }
-$configSubtitle = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("subtitle")) }
-$configMessage = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("message")) }
-$configMethod = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("method")) }
-$configDurationSeconds = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("durationSeconds", "duration_seconds")) }
-$configNoSound = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("noSound", "nosound", "no_sound", "silent")) }
 $configProvider = if ($null -eq $configDefaults) { $null } else { (Get-ObjectProperty $configDefaults @("provider")) }
 
 if (-not [string]::IsNullOrWhiteSpace($configTitle)) { $defaultTitle = $configTitle.ToString() }
@@ -262,6 +322,22 @@ if (
 ) {
   $providerValue = Resolve-Provider $configProvider $null
 }
+
+# Get provider-specific configuration
+$providerConfig = Get-ProviderConfig $notifyConfig $providerValue
+$popupConfig = Get-MergedPopupConfig $notifyConfig $providerValue
+
+$configTitle = if ($null -eq $providerConfig) { $null } else { (Get-ObjectProperty $providerConfig @("title")) }
+$configSubtitle = if ($null -eq $providerConfig) { $null } else { (Get-ObjectProperty $providerConfig @("subtitle")) }
+$configMessage = if ($null -eq $providerConfig) { $null } else { (Get-ObjectProperty $providerConfig @("message")) }
+$configMethod = if ($null -eq $providerConfig) { $null } else { (Get-ObjectProperty $providerConfig @("method")) }
+$configDurationSeconds = if ($null -eq $providerConfig) { $null } else { (Get-ObjectProperty $providerConfig @("durationSeconds", "duration_seconds")) }
+$configNoSound = if ($null -eq $providerConfig) { $null } else { (Get-ObjectProperty $providerConfig @("noSound", "nosound", "no_sound", "silent")) }
+
+if (-not [string]::IsNullOrWhiteSpace($configTitle)) { $defaultTitle = $configTitle.ToString() }
+if (-not [string]::IsNullOrWhiteSpace($configSubtitle)) { $defaultSubtitle = $configSubtitle.ToString() }
+if (-not [string]::IsNullOrWhiteSpace($configMessage)) { $defaultMessage = $configMessage.ToString() }
+
 $eventType = if ($null -eq $event) { $null } else { (Get-ObjectProperty $event @("type", "eventType", "event_type")) }
 $hookEventName = if ($null -eq $event) { $null } else { (Get-ObjectProperty $event @("hook_event_name", "hookEventName")) }
 $stopReason = if ($null -eq $event) { $null } else { (Get-ObjectProperty $event @("reason", "stopReason", "stop_reason")) }
@@ -424,6 +500,7 @@ $env:AI_CHAT_NOTIFY_DURATION_SECONDS = $durationValue
 $env:AI_CHAT_NOTIFY_NOSOUND = if ($noSoundValue) { "1" } else { "0" }
 if (-not [string]::IsNullOrWhiteSpace($script:NotifyLogPath)) { $env:AI_CHAT_NOTIFY_LOG = $script:NotifyLogPath }
 if (-not [string]::IsNullOrWhiteSpace($configPathValue)) { $env:AI_CHAT_NOTIFY_CONFIG_PATH = $configPathValue }
+if (-not [string]::IsNullOrWhiteSpace($providerValue)) { $env:AI_CHAT_NOTIFY_PROVIDER = $providerValue }
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $innerPath = Join-Path $scriptRoot "ai-chat-notify-inner.ps1"

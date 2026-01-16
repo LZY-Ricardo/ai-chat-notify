@@ -1,0 +1,91 @@
+{
+  "version": 2,
+  "defaults": {
+    "provider": "codex",
+    "title": "AI Chat",
+    "subtitle": "任务已完成",
+    "message": "请到 CLI/IDE 中查看详细信息",
+    "method": "popup",
+    "durationSeconds": 2,
+    "noSound": true
+  },
+  "providers": {
+    "codex": {
+      "title": "Codex",
+      "subtitle": "任务已完成",
+      "message": "请到 CLI/IDE 中查看详细信息",
+      "method": "popup",
+      "durationSeconds": 2,
+      "noSound": true,
+      "popup": {
+        "width": 360,
+        "minHeight": 200,
+        "fontFamily": "Microsoft YaHei UI",
+        "titleFontSize": 20,
+        "subtitleFontSize": 18,
+        "messageFontSize": 14,
+        "titleColor": "#111827",
+        "subtitleColor": "#111827",
+        "messageColor": "#374151",
+        "backgroundColor": "#FFFFFF",
+        "borderColor": "#E6E8EB",
+        "dividerColor": "#EEF0F2",
+        "accentColor": "#2B71D8",
+        "iconText": "i",
+        "iconTextColor": "#FFFFFF",
+        "iconBackgroundColor": "#2B71D8",
+        "okText": "确定"
+      }
+    },
+    "claudecode": {
+      "title": "Claude Code",
+      "subtitle": "Task Complete",
+      "message": "Check your CLI/IDE for details.",
+      "method": "popup",
+      "durationSeconds": 2,
+      "noSound": true,
+      "popup": {
+        "width": 400,
+        "minHeight": 180,
+        "fontFamily": "Segoe UI",
+        "titleFontSize": 18,
+        "subtitleFontSize": 16,
+        "messageFontSize": 13,
+        "titleColor": "#1F2937",
+        "subtitleColor": "#4B5563",
+        "messageColor": "#6B7280",
+        "backgroundColor": "#FAFAFA",
+        "borderColor": "#D1D5DB",
+        "dividerColor": "#E5E7EB",
+        "accentColor": "#7C3AED",
+        "iconText": "C",
+        "iconTextColor": "#FFFFFF",
+        "iconBackgroundColor": "#7C3AED",
+        "okText": "OK"
+      }
+    }
+  },
+  "popup": {
+    "width": 360,
+    "minHeight": 200,
+    "fontFamily": "Microsoft YaHei UI",
+    "titleFontSize": 20,
+    "subtitleFontSize": 18,
+    "messageFontSize": 14,
+    "titleColor": "#111827",
+    "subtitleColor": "#111827",
+    "messageColor": "#374151",
+    "backgroundColor": "#FFFFFF",
+    "borderColor": "#E6E8EB",
+    "dividerColor": "#EEF0F2",
+    "accentColor": "#2B71D8",
+    "iconText": "i",
+    "iconTextColor": "#FFFFFF",
+    "iconBackgroundColor": "#2B71D8",
+    "okText": "确定"
+  },
+  "debug": {
+    "enableLog": false,
+    "logPath": ""
+  }
+}

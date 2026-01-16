@@ -53,6 +53,39 @@ function Load-NotifyConfig {
   }
 }
 
+function Get-MergedPopupConfig {
+  param(
+    [Parameter(Mandatory = $true)][AllowNull()][object]$NotifyConfig,
+    [Parameter(Mandatory = $true)][string]$Provider
+  )
+
+  if ($null -eq $NotifyConfig) { return $null }
+
+  $configVersion = if ($null -ne $NotifyConfig.version) { [int]$NotifyConfig.version } else { 1 }
+
+  # For version 2+, check provider-specific popup config first
+  if ($configVersion -ge 2) {
+    $providers = Get-ObjectProperty $NotifyConfig @("providers")
+    if ($null -ne $providers) {
+      $providerConfig = Get-ObjectProperty $providers @($Provider)
+      if ($null -ne $providerConfig) {
+        $providerPopup = Get-ObjectProperty $providerConfig @("popup")
+        if ($null -ne $providerPopup) {
+          return $providerPopup
+        }
+      }
+    }
+  }
+
+  # Fallback to global popup config
+  $globalPopup = Get-ObjectProperty $NotifyConfig @("popup")
+  if ($null -ne $globalPopup) {
+    return $globalPopup
+  }
+
+  return $null
+}
+
 $title = Get-NotifyEnvValue "AI_CHAT_NOTIFY_TITLE" @("CODEX_NOTIFY_TITLE")
 $subtitle = Get-NotifyEnvValue "AI_CHAT_NOTIFY_SUBTITLE" @("CODEX_NOTIFY_SUBTITLE")
 $message = Get-NotifyEnvValue "AI_CHAT_NOTIFY_MESSAGE" @("CODEX_NOTIFY_MESSAGE")
@@ -71,7 +104,12 @@ function Log {
 }
 
 $notifyConfig = Load-NotifyConfig $configPath
-$popupConfig = if ($null -eq $notifyConfig) { $null } else { (Get-ObjectProperty $notifyConfig @("popup")) }
+
+# Get provider from environment variable
+$provider = Get-NotifyEnvValue "AI_CHAT_NOTIFY_PROVIDER" @("")
+if ([string]::IsNullOrWhiteSpace($provider)) { $provider = "generic" }
+
+$popupConfig = Get-MergedPopupConfig $notifyConfig $provider
 
 function ConvertTo-Color {
   param([AllowNull()][string]$Hex)

@@ -18,15 +18,6 @@
                                                      "command":  "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:/Users/lenovo/AppData/Local/ai-chat-notify/bin/ai-chat-notify.ps1\" -ConfigPath \"C:/Users/lenovo/AppData/Local/ai-chat-notify/config.json\" -LogPath \"C:/Users/lenovo/AppData/Local/ai-chat-notify/ai-chat-notify.log\" -Provider claude-code"
                                                  }
                                              ]
-                               },
-                               {
-                                   "matcher":  "*",
-                                   "hooks":  [
-                                                 {
-                                                     "type":  "command",
-                                                     "command":  "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:/Users/lenovo/AppData/Local/ai-chat-notify/bin/ai-chat-notify.ps1\" -ConfigPath \"C:/Users/lenovo/AppData/Local/ai-chat-notify/config.json\" -Provider claudecode"
-                                                 }
-                                             ]
                                }
                            ]
               }
