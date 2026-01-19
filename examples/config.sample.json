@@ -1,13 +1,31 @@
 {
-  "version": 1,
+  "version": 2,
   "defaults": {
     "provider": "codex",
-    "title": "Codex",
+    "title": "AI Chat",
     "subtitle": "任务已完成",
     "message": "请到 CLI/IDE 中查看详细信息",
     "method": "popup",
     "durationSeconds": 2,
     "noSound": true
+  },
+  "providers": {
+    "codex": {
+      "title": "Codex",
+      "subtitle": "任务已完成",
+      "message": "请到 CLI/IDE 中查看详细信息",
+      "method": "popup",
+      "durationSeconds": 2,
+      "noSound": true
+    },
+    "claudecode": {
+      "title": "Claude Code",
+      "subtitle": "任务已完成",
+      "message": "请到 CLI/IDE 中查看详细信息",
+      "method": "popup",
+      "durationSeconds": 2,
+      "noSound": true
+    }
   },
   "popup": {
     "width": 360,
@@ -29,4 +47,3 @@
     "okText": "确定"
   }
 }
-

@@ -165,7 +165,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/ai-chat-notif
 - 参数：`-ConfigPath "C:\path\to\config.json"`
 - 环境变量：`AI_CHAT_NOTIFY_CONFIG_PATH`（兼容 `CODEX_NOTIFY_CONFIG_PATH`）
 
-配置结构示例：`./examples/config.sample.json`（单配置；暂不支持 profiles）
+配置结构示例：`./examples/config.sample.json`（v2，含 `providers`；暂不支持 profiles）
 
 优先级（从高到低）：
 - 文案（`Title/Subtitle/Message`）：环境变量 > 参数 > 事件 JSON > `config.json` > 内置默认
