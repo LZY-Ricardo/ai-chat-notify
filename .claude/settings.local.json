@@ -6,7 +6,8 @@
       "Skill(cn-commit:*)",
       "Bash(git rev-parse:*)",
       "Bash(python:*)",
-      "Read(//c/Users/lenovo/.claude/**)"
+      "Read(//c/Users/lenovo/.claude/**)",
+      "Bash(bd:*)"
     ]
   },
   "hooks": {}
