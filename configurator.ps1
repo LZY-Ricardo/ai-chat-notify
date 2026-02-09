@@ -81,11 +81,158 @@ function Save-JsonFile {
   Set-Content -LiteralPath $Path -Encoding UTF8 -Value $json
 }
 
+function Get-ThemePresets {
+  return [ordered]@{
+    custom = [ordered]@{
+      name        = "自定义"
+      description = "手动配置的样式"
+    }
+    minimal = [ordered]@{
+      name        = "极简白"
+      description = "高对比度，清晰易读，适合白天使用"
+      width               = 360
+      minHeight           = 200
+      fontFamily          = "Segoe UI"
+      titleFontSize       = 20
+      subtitleFontSize    = 18
+      messageFontSize     = 14
+      titleColor          = "#000000"
+      subtitleColor       = "#333333"
+      messageColor        = "#666666"
+      backgroundColor     = "#FFFFFF"
+      borderColor         = "#000000"
+      dividerColor        = "#E0E0E0"
+      accentColor         = "#000000"
+      iconText            = "i"
+      iconTextColor       = "#FFFFFF"
+      iconBackgroundColor = "#000000"
+      okText              = "确定"
+    }
+    dark = [ordered]@{
+      name        = "深色模式"
+      description = "护眼深色，适合夜间/长时间使用"
+      width               = 380
+      minHeight           = 180
+      fontFamily          = "Segoe UI"
+      titleFontSize       = 19
+      subtitleFontSize    = 17
+      messageFontSize     = 14
+      titleColor          = "#E5E7EB"
+      subtitleColor       = "#D1D5DB"
+      messageColor        = "#9CA3AF"
+      backgroundColor     = "#1F2937"
+      borderColor         = "#374151"
+      dividerColor        = "#4B5563"
+      accentColor         = "#60A5FA"
+      iconText            = "i"
+      iconTextColor       = "#FFFFFF"
+      iconBackgroundColor = "#60A5FA"
+      okText              = "确定"
+    }
+    professional = [ordered]@{
+      name        = "专业蓝"
+      description = "商务风格，类似 Codex 主题"
+      width               = 360
+      minHeight           = 200
+      fontFamily          = "Microsoft YaHei UI"
+      titleFontSize       = 20
+      subtitleFontSize    = 18
+      messageFontSize     = 14
+      titleColor          = "#111827"
+      subtitleColor       = "#111827"
+      messageColor        = "#374151"
+      backgroundColor     = "#FFFFFF"
+      borderColor         = "#E6E8EB"
+      dividerColor        = "#EEF0F2"
+      accentColor         = "#2B71D8"
+      iconText            = "i"
+      iconTextColor       = "#FFFFFF"
+      iconBackgroundColor = "#2B71D8"
+      okText              = "确定"
+    }
+    creative = [ordered]@{
+      name        = "创意紫"
+      description = "类似 Claude Code 主题"
+      width               = 400
+      minHeight           = 180
+      fontFamily          = "Segoe UI"
+      titleFontSize       = 18
+      subtitleFontSize    = 16
+      messageFontSize     = 13
+      titleColor          = "#1F2937"
+      subtitleColor       = "#4B5563"
+      messageColor        = "#6B7280"
+      backgroundColor     = "#FAFAFA"
+      borderColor         = "#D1D5DB"
+      dividerColor        = "#E5E7EB"
+      accentColor         = "#7C3AED"
+      iconText            = "C"
+      iconTextColor       = "#FFFFFF"
+      iconBackgroundColor = "#7C3AED"
+      okText              = "OK"
+    }
+    system = [ordered]@{
+      name        = "系统跟随"
+      description = "根据系统主题自动切换（暂未实现）"
+      width               = 360
+      minHeight           = 200
+      fontFamily          = "Microsoft YaHei UI"
+      titleFontSize       = 19
+      subtitleFontSize    = 17
+      messageFontSize     = 14
+      titleColor          = "#111827"
+      subtitleColor       = "#4B5563"
+      messageColor        = "#6B7280"
+      backgroundColor     = "#FFFFFF"
+      borderColor         = "#E6E8EB"
+      dividerColor        = "#EEF0F2"
+      accentColor         = "#3B82F6"
+      iconText            = "i"
+      iconTextColor       = "#FFFFFF"
+      iconBackgroundColor = "#3B82F6"
+      okText              = "确定"
+    }
+  }
+}
+
+function Apply-ThemeToPopup {
+  param(
+    [Parameter(Mandatory = $true)][string]$ThemeId,
+    [Parameter(Mandatory = $true)][object]$PopupConfig
+  )
+
+  $presets = Get-ThemePresets
+
+  if ($null -eq $presets[$ThemeId]) {
+    return $PopupConfig
+  }
+
+  $theme = $presets[$ThemeId]
+
+  # 应用主题的所有样式属性
+  $styleProps = @(
+    "width", "minHeight", "fontFamily", "titleFontSize",
+    "subtitleFontSize", "messageFontSize", "titleColor",
+    "subtitleColor", "messageColor", "backgroundColor",
+    "borderColor", "dividerColor", "accentColor",
+    "iconText", "iconTextColor", "iconBackgroundColor", "okText"
+  )
+
+  foreach ($prop in $styleProps) {
+    if ($null -ne $theme[$prop]) {
+      $PopupConfig[$prop] = $theme[$prop]
+    }
+  }
+
+  return $PopupConfig
+}
+
 function New-DefaultConfig {
   return [ordered]@{
     version  = 2
     defaults = [ordered]@{
       provider        = "codex"
+      theme           = "custom"
       title           = "AI Chat"
       subtitle        = "任务已完成"
       message         = "请到 CLI/IDE 中查看详细信息"
@@ -93,6 +240,7 @@ function New-DefaultConfig {
       durationSeconds = 2
       noSound         = $true
     }
+    themePresets = Get-ThemePresets
     providers = [ordered]@{
       codex = [ordered]@{
         title           = "Codex"
