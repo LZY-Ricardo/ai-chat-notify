@@ -779,52 +779,64 @@ $xaml = @'
               <RowDefinition Height="Auto" />
               <RowDefinition Height="Auto" />
               <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="宽度" VerticalAlignment="Center" />
-            <TextBox x:Name="PopupWidthBox" Grid.Row="0" Grid.Column="1" Margin="8,2,18,2" />
-            <TextBlock Grid.Row="0" Grid.Column="2" Text="最小高度" VerticalAlignment="Center" />
-            <TextBox x:Name="PopupMinHeightBox" Grid.Row="0" Grid.Column="3" Margin="8,2,0,2" />
+            <Border Grid.Row="0" Grid.ColumnSpan="4" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="0,0,0,12" Margin="0,0,0,12">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="160" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="主题预设" VerticalAlignment="Center" FontWeight="SemiBold" />
+                <ComboBox x:Name="ThemePresetComboBox" Grid.Column="1" Margin="8,2,0,2" DisplayMemberPath="name" SelectedValuePath="id" />
+              </Grid>
+            </Border>
 
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="字体" VerticalAlignment="Center" />
-            <TextBox x:Name="FontFamilyBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Margin="8,2,0,2" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="宽度" VerticalAlignment="Center" />
+            <TextBox x:Name="PopupWidthBox" Grid.Row="1" Grid.Column="1" Margin="8,2,18,2" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="最小高度" VerticalAlignment="Center" />
+            <TextBox x:Name="PopupMinHeightBox" Grid.Row="1" Grid.Column="3" Margin="8,2,0,2" />
 
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="Title 字号" VerticalAlignment="Center" />
-            <TextBox x:Name="TitleFontSizeBox" Grid.Row="2" Grid.Column="1" Margin="8,2,18,2" />
-            <TextBlock Grid.Row="2" Grid.Column="2" Text="Subtitle 字号" VerticalAlignment="Center" />
-            <TextBox x:Name="SubtitleFontSizeBox" Grid.Row="2" Grid.Column="3" Margin="8,2,0,2" />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="字体" VerticalAlignment="Center" />
+            <TextBox x:Name="FontFamilyBox" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Margin="8,2,0,2" />
 
-            <TextBlock Grid.Row="3" Grid.Column="0" Text="Message 字号" VerticalAlignment="Center" />
-            <TextBox x:Name="MessageFontSizeBox" Grid.Row="3" Grid.Column="1" Margin="8,2,18,2" />
-            <TextBlock Grid.Row="3" Grid.Column="2" Text="确定按钮文案" VerticalAlignment="Center" />
-            <TextBox x:Name="OkTextBox" Grid.Row="3" Grid.Column="3" Margin="8,2,0,2" />
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Title 字号" VerticalAlignment="Center" />
+            <TextBox x:Name="TitleFontSizeBox" Grid.Row="3" Grid.Column="1" Margin="8,2,18,2" />
+            <TextBlock Grid.Row="3" Grid.Column="2" Text="Subtitle 字号" VerticalAlignment="Center" />
+            <TextBox x:Name="SubtitleFontSizeBox" Grid.Row="3" Grid.Column="3" Margin="8,2,0,2" />
 
-            <TextBlock Grid.Row="4" Grid.Column="0" Text="Title 颜色" VerticalAlignment="Center" />
-            <TextBox x:Name="TitleColorBox" Grid.Row="4" Grid.Column="1" Margin="8,2,18,2" />
-            <TextBlock Grid.Row="4" Grid.Column="2" Text="Subtitle 颜色" VerticalAlignment="Center" />
-            <TextBox x:Name="SubtitleColorBox" Grid.Row="4" Grid.Column="3" Margin="8,2,0,2" />
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="Message 字号" VerticalAlignment="Center" />
+            <TextBox x:Name="MessageFontSizeBox" Grid.Row="4" Grid.Column="1" Margin="8,2,18,2" />
+            <TextBlock Grid.Row="4" Grid.Column="2" Text="确定按钮文案" VerticalAlignment="Center" />
+            <TextBox x:Name="OkTextBox" Grid.Row="4" Grid.Column="3" Margin="8,2,0,2" />
 
-            <TextBlock Grid.Row="5" Grid.Column="0" Text="Message 颜色" VerticalAlignment="Center" />
-            <TextBox x:Name="MessageColorBox" Grid.Row="5" Grid.Column="1" Margin="8,2,18,2" />
-            <TextBlock Grid.Row="5" Grid.Column="2" Text="背景色" VerticalAlignment="Center" />
-            <TextBox x:Name="BackgroundColorBox" Grid.Row="5" Grid.Column="3" Margin="8,2,0,2" />
+            <TextBlock Grid.Row="5" Grid.Column="0" Text="Title 颜色" VerticalAlignment="Center" />
+            <TextBox x:Name="TitleColorBox" Grid.Row="5" Grid.Column="1" Margin="8,2,18,2" />
+            <TextBlock Grid.Row="5" Grid.Column="2" Text="Subtitle 颜色" VerticalAlignment="Center" />
+            <TextBox x:Name="SubtitleColorBox" Grid.Row="5" Grid.Column="3" Margin="8,2,0,2" />
 
-            <TextBlock Grid.Row="6" Grid.Column="0" Text="边框色" VerticalAlignment="Center" />
-            <TextBox x:Name="BorderColorBox" Grid.Row="6" Grid.Column="1" Margin="8,2,18,2" />
-            <TextBlock Grid.Row="6" Grid.Column="2" Text="分割线色" VerticalAlignment="Center" />
-            <TextBox x:Name="DividerColorBox" Grid.Row="6" Grid.Column="3" Margin="8,2,0,2" />
+            <TextBlock Grid.Row="6" Grid.Column="0" Text="Message 颜色" VerticalAlignment="Center" />
+            <TextBox x:Name="MessageColorBox" Grid.Row="6" Grid.Column="1" Margin="8,2,18,2" />
+            <TextBlock Grid.Row="6" Grid.Column="2" Text="背景色" VerticalAlignment="Center" />
+            <TextBox x:Name="BackgroundColorBox" Grid.Row="6" Grid.Column="3" Margin="8,2,0,2" />
 
-            <TextBlock Grid.Row="7" Grid.Column="0" Text="强调色(按钮)" VerticalAlignment="Center" />
-            <TextBox x:Name="AccentColorBox" Grid.Row="7" Grid.Column="1" Margin="8,2,18,2" />
-            <TextBlock Grid.Row="7" Grid.Column="2" Text="图标文字" VerticalAlignment="Center" />
-            <TextBox x:Name="IconTextBox" Grid.Row="7" Grid.Column="3" Margin="8,2,0,2" />
+            <TextBlock Grid.Row="7" Grid.Column="0" Text="边框色" VerticalAlignment="Center" />
+            <TextBox x:Name="BorderColorBox" Grid.Row="7" Grid.Column="1" Margin="8,2,18,2" />
+            <TextBlock Grid.Row="7" Grid.Column="2" Text="分割线色" VerticalAlignment="Center" />
+            <TextBox x:Name="DividerColorBox" Grid.Row="7" Grid.Column="3" Margin="8,2,0,2" />
 
-            <TextBlock Grid.Row="8" Grid.Column="0" Text="图标文字色" VerticalAlignment="Center" />
-            <TextBox x:Name="IconTextColorBox" Grid.Row="8" Grid.Column="1" Margin="8,2,18,2" />
-            <TextBlock Grid.Row="8" Grid.Column="2" Text="图标背景色" VerticalAlignment="Center" />
-            <TextBox x:Name="IconBgColorBox" Grid.Row="8" Grid.Column="3" Margin="8,2,0,2" />
+            <TextBlock Grid.Row="8" Grid.Column="0" Text="强调色(按钮)" VerticalAlignment="Center" />
+            <TextBox x:Name="AccentColorBox" Grid.Row="8" Grid.Column="1" Margin="8,2,18,2" />
+            <TextBlock Grid.Row="8" Grid.Column="2" Text="图标文字" VerticalAlignment="Center" />
+            <TextBox x:Name="IconTextBox" Grid.Row="8" Grid.Column="3" Margin="8,2,0,2" />
 
-            <TextBlock Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,10,0,0"
+            <TextBlock Grid.Row="9" Grid.Column="0" Text="图标文字色" VerticalAlignment="Center" />
+            <TextBox x:Name="IconTextColorBox" Grid.Row="9" Grid.Column="1" Margin="8,2,18,2" />
+            <TextBlock Grid.Row="9" Grid.Column="2" Text="图标背景色" VerticalAlignment="Center" />
+            <TextBox x:Name="IconBgColorBox" Grid.Row="9" Grid.Column="3" Margin="8,2,0,2" />
+
+            <TextBlock Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,10,0,0"
               Text="颜色格式支持：#RRGGBB 或 #AARRGGBB" Foreground="#6B7280" />
           </Grid>
         </ScrollViewer>
@@ -1027,6 +1039,7 @@ $controls = @{
   MessageBox          = $window.FindName("MessageBox")
   TestPopupBtn        = $window.FindName("TestPopupBtn")
   TestBalloonBtn      = $window.FindName("TestBalloonBtn")
+  ThemePresetComboBox = $window.FindName("ThemePresetComboBox")
   PopupWidthBox       = $window.FindName("PopupWidthBox")
   PopupMinHeightBox   = $window.FindName("PopupMinHeightBox")
   FontFamilyBox       = $window.FindName("FontFamilyBox")
@@ -1183,6 +1196,39 @@ function Save-ConfigFromUI {
     [System.Windows.MessageBox]::Show($_.Exception.Message, "保存失败", "OK", "Error") | Out-Null
     return $false
   }
+}
+
+function Apply-ThemeToUI {
+  param([Parameter(Mandatory = $true)][string]$ThemeId)
+
+  $presets = Get-ThemePresets
+  $theme = $presets[$ThemeId]
+
+  if ($null -eq $theme) {
+    Set-Status "主题不存在: $ThemeId"
+    return
+  }
+
+  # 应用主题到所有样式控件
+  if ($theme.width) { $controls.PopupWidthBox.Text = $theme.width }
+  if ($theme.minHeight) { $controls.PopupMinHeightBox.Text = $theme.minHeight }
+  if ($theme.fontFamily) { $controls.FontFamilyBox.Text = $theme.fontFamily }
+  if ($theme.titleFontSize) { $controls.TitleFontSizeBox.Text = $theme.titleFontSize }
+  if ($theme.subtitleFontSize) { $controls.SubtitleFontSizeBox.Text = $theme.subtitleFontSize }
+  if ($theme.messageFontSize) { $controls.MessageFontSizeBox.Text = $theme.messageFontSize }
+  if ($theme.titleColor) { $controls.TitleColorBox.Text = $theme.titleColor }
+  if ($theme.subtitleColor) { $controls.SubtitleColorBox.Text = $theme.subtitleColor }
+  if ($theme.messageColor) { $controls.MessageColorBox.Text = $theme.messageColor }
+  if ($theme.backgroundColor) { $controls.BackgroundColorBox.Text = $theme.backgroundColor }
+  if ($theme.borderColor) { $controls.BorderColorBox.Text = $theme.borderColor }
+  if ($theme.dividerColor) { $controls.DividerColorBox.Text = $theme.dividerColor }
+  if ($theme.accentColor) { $controls.AccentColorBox.Text = $theme.accentColor }
+  if ($theme.iconText) { $controls.IconTextBox.Text = $theme.iconText }
+  if ($theme.iconTextColor) { $controls.IconTextColorBox.Text = $theme.iconTextColor }
+  if ($theme.iconBackgroundColor) { $controls.IconBgColorBox.Text = $theme.iconBackgroundColor }
+  if ($theme.okText) { $controls.OkTextBox.Text = $theme.okText }
+
+  Set-Status "已应用主题: $($theme.name)"
 }
 
 function Get-CodexTomlPathFromUI {
@@ -1974,6 +2020,21 @@ function Apply-ConfigToUI {
   $controls.ProviderBox.ItemsSource = $providers
   $controls.MethodBox.ItemsSource = @("popup", "balloon")
 
+  # Initialize theme preset dropdown
+  $presets = Get-ThemePresets
+  $themeList = @()
+  foreach ($key in $presets.Keys) {
+    $themeList += [ordered]@{
+      id = $key
+      name = $presets[$key].name
+    }
+  }
+  $controls.ThemePresetComboBox.ItemsSource = $themeList
+
+  # Set current theme
+  $currentTheme = if ($null -ne $d.theme) { $d.theme.ToString() } else { "custom" }
+  $controls.ThemePresetComboBox.SelectedValue = $currentTheme
+
   # Determine config version
   $configVersion = if ($null -ne $config.version) { [int]$config.version } else { 1 }
 
@@ -2102,6 +2163,7 @@ function Read-UIToConfig {
   # Default configuration (global fallback)
   $defaults = [ordered]@{
     provider        = $provider
+    theme           = if ($null -ne $controls.ThemePresetComboBox.SelectedValue) { $controls.ThemePresetComboBox.SelectedValue.ToString() } else { "custom" }
     title           = "AI Chat"
     subtitle        = "任务已完成"
     message         = "请到 CLI/IDE 中查看详细信息"
@@ -2435,6 +2497,16 @@ $controls.CopySnippetBtn.Add_Click({
 })
 
 $controls.SaveBtn.Add_Click({ [void](Save-ConfigFromUI) })
+
+$controls.ThemePresetComboBox.Add_SelectionChanged({
+  $selectedItem = $controls.ThemePresetComboBox.SelectedItem
+  if ($null -ne $selectedItem) {
+    $themeId = $selectedItem.id
+    if ($themeId -ne "custom") {
+      Apply-ThemeToUI -ThemeId $themeId
+    }
+  }
+})
 
 $controls.CloseBtn.Add_Click({ $window.Close() })
 
