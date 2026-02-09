@@ -2024,7 +2024,7 @@ function Apply-ConfigToUI {
   $presets = Get-ThemePresets
   $themeList = @()
   foreach ($key in $presets.Keys) {
-    $themeList += [ordered]@{
+    $themeList += [PSCustomObject]@{
       id = $key
       name = $presets[$key].name
     }
