@@ -1386,6 +1386,31 @@ function Apply-ThemeToUI {
   }
 }
 
+function ConvertTo-Color {
+  param([AllowNull()][string]$Hex)
+  if ([string]::IsNullOrWhiteSpace($Hex)) { return $null }
+  $s = $Hex.Trim()
+  if ($s.StartsWith("#")) { $s = $s.Substring(1) }
+  if ($s.Length -eq 6) { $s = "FF$s" }
+  if ($s.Length -ne 8) { return $null }
+  try {
+    $a = [Convert]::ToByte($s.Substring(0, 2), 16)
+    $r = [Convert]::ToByte($s.Substring(2, 2), 16)
+    $g = [Convert]::ToByte($s.Substring(4, 2), 16)
+    $b = [Convert]::ToByte($s.Substring(6, 2), 16)
+    return [System.Windows.Media.Color]::FromArgb($a, $r, $g, $b)
+  } catch {
+    return $null
+  }
+}
+
+function New-SolidBrush {
+  param([AllowNull()][string]$Hex)
+  $c = ConvertTo-Color $Hex
+  if ($null -eq $c) { return $null }
+  return (New-Object System.Windows.Media.SolidColorBrush -ArgumentList $c)
+}
+
 function Update-Preview {
   # Debug: Log current values
   Write-Host "=== Update-Preview Called ===" -ForegroundColor Cyan
@@ -1414,18 +1439,20 @@ function Update-Preview {
   }
 
   if (-not [string]::IsNullOrWhiteSpace($bgColor)) {
-    try {
-      $controls.PreviewContainer.Background = [System.Windows.Media.Brush]::Parse($bgColor)
+    $brush = New-SolidBrush $bgColor
+    if ($null -ne $brush) {
+      $controls.PreviewContainer.Background = $brush
       Write-Host "  Set BG: $bgColor" -ForegroundColor Green
-    } catch {
+    } else {
       Write-Host "  Failed to parse BG color: $bgColor" -ForegroundColor Red
     }
   }
   if (-not [string]::IsNullOrWhiteSpace($borderColor)) {
-    try {
-      $controls.PreviewContainer.BorderBrush = [System.Windows.Media.Brush]::Parse($borderColor)
+    $brush = New-SolidBrush $borderColor
+    if ($null -ne $brush) {
+      $controls.PreviewContainer.BorderBrush = $brush
       Write-Host "  Set Border: $borderColor" -ForegroundColor Green
-    } catch {
+    } else {
       Write-Host "  Failed to parse Border color: $borderColor" -ForegroundColor Red
     }
   }
@@ -1436,13 +1463,15 @@ function Update-Preview {
   $iconTextColor = $controls.IconTextColorBox.Text
 
   if (-not [string]::IsNullOrWhiteSpace($iconBg)) {
-    try { $controls.PreviewIconEllipse.Fill = [System.Windows.Media.Brush]::Parse($iconBg) } catch {}
+    $brush = New-SolidBrush $iconBg
+    if ($null -ne $brush) { $controls.PreviewIconEllipse.Fill = $brush }
   }
   if (-not [string]::IsNullOrWhiteSpace($iconText)) {
     $controls.PreviewIconText.Text = $iconText
   }
   if (-not [string]::IsNullOrWhiteSpace($iconTextColor)) {
-    try { $controls.PreviewIconText.Foreground = [System.Windows.Media.Brush]::Parse($iconTextColor) } catch {}
+    $brush = New-SolidBrush $iconTextColor
+    if ($null -ne $brush) { $controls.PreviewIconText.Foreground = $brush }
   }
 
   # Get font family
@@ -1460,7 +1489,8 @@ function Update-Preview {
     try { $controls.PreviewSubtitle.FontSize = [double]$subtitleSize } catch {}
   }
   if (-not [string]::IsNullOrWhiteSpace($subtitleColor)) {
-    try { $controls.PreviewSubtitle.Foreground = [System.Windows.Media.Brush]::Parse($subtitleColor) } catch {}
+    $brush = New-SolidBrush $subtitleColor
+    if ($null -ne $brush) { $controls.PreviewSubtitle.Foreground = $brush }
   }
   if (-not [string]::IsNullOrWhiteSpace($subtitleText)) {
     $controls.PreviewSubtitle.Text = $subtitleText
@@ -1480,7 +1510,8 @@ function Update-Preview {
     try { $controls.PreviewMessage.FontSize = [double]$messageSize } catch {}
   }
   if (-not [string]::IsNullOrWhiteSpace($messageColor)) {
-    try { $controls.PreviewMessage.Foreground = [System.Windows.Media.Brush]::Parse($messageColor) } catch {}
+    $brush = New-SolidBrush $messageColor
+    if ($null -ne $brush) { $controls.PreviewMessage.Foreground = $brush }
   }
   if (-not [string]::IsNullOrWhiteSpace($messageText)) {
     $controls.PreviewMessage.Text = $messageText
@@ -1493,7 +1524,8 @@ function Update-Preview {
   $okText = $controls.OkTextBox.Text
 
   if (-not [string]::IsNullOrWhiteSpace($accentColor)) {
-    try { $controls.PreviewOkButton.Background = [System.Windows.Media.Brush]::Parse($accentColor) } catch {}
+    $brush = New-SolidBrush $accentColor
+    if ($null -ne $brush) { $controls.PreviewOkButton.Background = $brush }
   }
   if (-not [string]::IsNullOrWhiteSpace($okText)) {
     $controls.PreviewOkButton.Content = $okText
