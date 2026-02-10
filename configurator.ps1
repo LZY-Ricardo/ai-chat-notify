@@ -667,6 +667,9 @@ if ($configVersion -lt 2) {
 # Store current config globally for use in Read-UIToConfig
 $script:CurrentConfig = $config
 
+# Flag to prevent theme change events when programmatically setting theme
+$script:ApplyingTheme = $false
+
 if ($null -eq $config.defaults) { $config | Add-Member -NotePropertyName defaults -NotePropertyValue @{} }
 if ($null -eq $config.popup) { $config | Add-Member -NotePropertyName popup -NotePropertyValue @{} }
 if ($null -eq $config.providers) { $config | Add-Member -NotePropertyName providers -NotePropertyValue @{} }
@@ -758,40 +761,46 @@ $xaml = @'
       </TabItem>
 
       <TabItem x:Name="PopupStyleTabItem" Header="样式（Popup）">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <Grid Margin="12">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="160" />
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition Width="160" />
-              <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+        <Grid Margin="0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="420" />
+          </Grid.ColumnDefinitions>
 
-            <Border Grid.Row="0" Grid.ColumnSpan="4" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="0,0,0,12" Margin="0,0,0,12">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="160" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="主题预设" VerticalAlignment="Center" FontWeight="SemiBold" />
-                <ComboBox x:Name="ThemePresetComboBox" Grid.Column="1" Margin="8,2,0,2" DisplayMemberPath="name" SelectedValuePath="id" />
-              </Grid>
-            </Border>
+          <!-- Left: Style Controls -->
+          <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+            <Grid Margin="12">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="160" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="160" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <Border Grid.Row="0" Grid.ColumnSpan="4" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="0,0,0,12" Margin="0,0,0,12">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Grid.Column="0" Text="主题预设" VerticalAlignment="Center" FontWeight="SemiBold" />
+                  <ComboBox x:Name="ThemePresetComboBox" Grid.Column="1" Margin="8,2,0,2" DisplayMemberPath="name" SelectedValuePath="id" />
+                </Grid>
+              </Border>
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="宽度" VerticalAlignment="Center" />
             <TextBox x:Name="PopupWidthBox" Grid.Row="1" Grid.Column="1" Margin="8,2,18,2" />
@@ -840,6 +849,132 @@ $xaml = @'
               Text="颜色格式支持：#RRGGBB 或 #AARRGGBB" Foreground="#6B7280" />
           </Grid>
         </ScrollViewer>
+
+        <!-- Right: Live Preview -->
+        <Border Grid.Column="1" BorderBrush="#E5E7EB" BorderThickness="1,0,0,0" Background="#F9FAFB" Padding="12">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <TextBlock Text="实时预览" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,12" Foreground="#374151" />
+
+              <!-- Preview Container (mimics actual popup structure) -->
+              <Border x:Name="PreviewContainer" BorderBrush="#E6E8EB" BorderThickness="1" Background="#FFFFFF" CornerRadius="14" Padding="0" HorizontalAlignment="Center">
+                <Border.Effect>
+                  <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="10" ShadowDepth="2" />
+                </Border.Effect>
+
+                <Grid>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+
+                  <!-- Row 0: Header (optional, not shown in actual popup but structure exists) -->
+                  <Grid Grid.Row="0" Margin="0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- Header row is empty in actual popup, title is in Row 1 -->
+                  </Grid>
+
+                  <!-- Row 1: Icon + Subtitle + Message -->
+                  <Grid Grid.Row="1" Margin="18,16,18,16">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="72" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Icon -->
+                    <Grid Grid.Column="0" Width="56" Height="56" HorizontalAlignment="Left" VerticalAlignment="Top">
+                      <Ellipse x:Name="PreviewIconEllipse" Fill="#2B71D8">
+                        <Ellipse.Effect>
+                          <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.25" Color="#000000" />
+                        </Ellipse.Effect>
+                      </Ellipse>
+                      <TextBlock
+                        x:Name="PreviewIconText"
+                        Text="i"
+                        FontFamily="Segoe UI"
+                        FontSize="36"
+                        FontWeight="Bold"
+                        Foreground="#FFFFFF"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Margin="0,-1,0,0" />
+                    </Grid>
+
+                    <!-- Subtitle & Message -->
+                    <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                      <TextBlock
+                        x:Name="PreviewSubtitle"
+                        FontFamily="Microsoft YaHei UI"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Foreground="#111827"
+                        TextWrapping="Wrap"
+                        Text="任务已完成" />
+
+                      <TextBlock
+                        x:Name="PreviewMessage"
+                        Margin="0,8,0,0"
+                        FontFamily="Microsoft YaHei UI"
+                        FontSize="14"
+                        Foreground="#374151"
+                        TextWrapping="Wrap"
+                        Text="请到 CLI/IDE 中查看详细信息" />
+                    </StackPanel>
+                  </Grid>
+
+                  <!-- Row 2: OK Button -->
+                  <Grid Grid.Row="2" Margin="0,0,0,16" Background="Transparent">
+                    <Button
+                      x:Name="PreviewOkButton"
+                      Content="确定"
+                      Width="140"
+                      Height="40"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      FontFamily="Microsoft YaHei UI"
+                      FontSize="14"
+                      FontWeight="SemiBold"
+                      Foreground="#FFFFFF"
+                      Background="#2B71D8"
+                      BorderThickness="0"
+                      Cursor="Hand"
+                      Padding="8,0">
+                      <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                          <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="10">
+                            <Border.Effect>
+                              <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.22" Color="#000000" />
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                          </Border>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                              <Setter TargetName="Bd" Property="Background" Value="#2462BE" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                              <Setter TargetName="Bd" Property="Background" Value="#1D4FA0" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                              <Setter TargetName="Bd" Property="Opacity" Value="0.6" />
+                            </Trigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Button.Template>
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Border>
+
+              <!-- Preview Info -->
+              <TextBlock Text="预览会根据样式设置实时更新" FontSize="11" Foreground="#9CA3AF" Margin="0,12,0,0" TextAlignment="Center" />
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+      </Grid>
       </TabItem>
 
       <TabItem x:Name="SnippetTabItem" Header="集成片段">
@@ -1057,6 +1192,15 @@ $controls = @{
   IconTextBox         = $window.FindName("IconTextBox")
   IconTextColorBox    = $window.FindName("IconTextColorBox")
   IconBgColorBox      = $window.FindName("IconBgColorBox")
+
+  # Preview controls
+  PreviewContainer    = $window.FindName("PreviewContainer")
+  PreviewIconEllipse  = $window.FindName("PreviewIconEllipse")
+  PreviewIconText     = $window.FindName("PreviewIconText")
+  PreviewSubtitle     = $window.FindName("PreviewSubtitle")
+  PreviewMessage      = $window.FindName("PreviewMessage")
+  PreviewOkButton     = $window.FindName("PreviewOkButton")
+
   CmdInstalledRadio   = $window.FindName("CmdInstalledRadio")
   CmdLocalRadio       = $window.FindName("CmdLocalRadio")
   InputStdinRadio     = $window.FindName("InputStdinRadio")
@@ -1209,26 +1353,154 @@ function Apply-ThemeToUI {
     return
   }
 
-  # 应用主题到所有样式控件
-  if ($theme.width) { $controls.PopupWidthBox.Text = $theme.width }
-  if ($theme.minHeight) { $controls.PopupMinHeightBox.Text = $theme.minHeight }
-  if ($theme.fontFamily) { $controls.FontFamilyBox.Text = $theme.fontFamily }
-  if ($theme.titleFontSize) { $controls.TitleFontSizeBox.Text = $theme.titleFontSize }
-  if ($theme.subtitleFontSize) { $controls.SubtitleFontSizeBox.Text = $theme.subtitleFontSize }
-  if ($theme.messageFontSize) { $controls.MessageFontSizeBox.Text = $theme.messageFontSize }
-  if ($theme.titleColor) { $controls.TitleColorBox.Text = $theme.titleColor }
-  if ($theme.subtitleColor) { $controls.SubtitleColorBox.Text = $theme.subtitleColor }
-  if ($theme.messageColor) { $controls.MessageColorBox.Text = $theme.messageColor }
-  if ($theme.backgroundColor) { $controls.BackgroundColorBox.Text = $theme.backgroundColor }
-  if ($theme.borderColor) { $controls.BorderColorBox.Text = $theme.borderColor }
-  if ($theme.dividerColor) { $controls.DividerColorBox.Text = $theme.dividerColor }
-  if ($theme.accentColor) { $controls.AccentColorBox.Text = $theme.accentColor }
-  if ($theme.iconText) { $controls.IconTextBox.Text = $theme.iconText }
-  if ($theme.iconTextColor) { $controls.IconTextColorBox.Text = $theme.iconTextColor }
-  if ($theme.iconBackgroundColor) { $controls.IconBgColorBox.Text = $theme.iconBackgroundColor }
-  if ($theme.okText) { $controls.OkTextBox.Text = $theme.okText }
+  # Set flag to prevent TextChanged events from triggering theme change
+  $script:ApplyingTheme = $true
 
-  Set-Status "已应用主题: $($theme.name)"
+  try {
+    # 应用主题到所有样式控件
+    if ($theme.width) { $controls.PopupWidthBox.Text = $theme.width }
+    if ($theme.minHeight) { $controls.PopupMinHeightBox.Text = $theme.minHeight }
+    if ($theme.fontFamily) { $controls.FontFamilyBox.Text = $theme.fontFamily }
+    if ($theme.titleFontSize) { $controls.TitleFontSizeBox.Text = $theme.titleFontSize }
+    if ($theme.subtitleFontSize) { $controls.SubtitleFontSizeBox.Text = $theme.subtitleFontSize }
+    if ($theme.messageFontSize) { $controls.MessageFontSizeBox.Text = $theme.messageFontSize }
+    if ($theme.titleColor) { $controls.TitleColorBox.Text = $theme.titleColor }
+    if ($theme.subtitleColor) { $controls.SubtitleColorBox.Text = $theme.subtitleColor }
+    if ($theme.messageColor) { $controls.MessageColorBox.Text = $theme.messageColor }
+    if ($theme.backgroundColor) { $controls.BackgroundColorBox.Text = $theme.backgroundColor }
+    if ($theme.borderColor) { $controls.BorderColorBox.Text = $theme.borderColor }
+    if ($theme.dividerColor) { $controls.DividerColorBox.Text = $theme.dividerColor }
+    if ($theme.accentColor) { $controls.AccentColorBox.Text = $theme.accentColor }
+    if ($theme.iconText) { $controls.IconTextBox.Text = $theme.iconText }
+    if ($theme.iconTextColor) { $controls.IconTextColorBox.Text = $theme.iconTextColor }
+    if ($theme.iconBackgroundColor) { $controls.IconBgColorBox.Text = $theme.iconBackgroundColor }
+    if ($theme.okText) { $controls.OkTextBox.Text = $theme.okText }
+
+    Set-Status "已应用主题: $($theme.name)"
+
+    # Update preview after applying theme
+    Update-Preview
+  } finally {
+    # Clear flag after applying theme
+    $script:ApplyingTheme = $false
+  }
+}
+
+function Update-Preview {
+  # Debug: Log current values
+  Write-Host "=== Update-Preview Called ===" -ForegroundColor Cyan
+  Write-Host "  BG Color: $($controls.BackgroundColorBox.Text)" -ForegroundColor Yellow
+  Write-Host "  Icon BG: $($controls.IconBgColorBox.Text)" -ForegroundColor Yellow
+  Write-Host "  Subtitle Color: $($controls.SubtitleColorBox.Text)" -ForegroundColor Yellow
+  Write-Host "  Message Color: $($controls.MessageColorBox.Text)" -ForegroundColor Yellow
+  Write-Host "  Accent Color: $($controls.AccentColorBox.Text)" -ForegroundColor Yellow
+
+  # Update preview container styles
+  $bgColor = $controls.BackgroundColorBox.Text
+  $borderColor = $controls.BorderColorBox.Text
+  $widthValue = $controls.PopupWidthBox.Text
+
+  # Set preview container width
+  if (-not [string]::IsNullOrWhiteSpace($widthValue)) {
+    try {
+      $width = [double]$widthValue
+      # Limit preview width to fit in the panel (max 400px)
+      $previewWidth = [Math]::Min($width, 400)
+      $controls.PreviewContainer.Width = $previewWidth
+      Write-Host "  Set Width: $previewWidth" -ForegroundColor Green
+    } catch {
+      Write-Host "  Failed to set width: $_" -ForegroundColor Red
+    }
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($bgColor)) {
+    try {
+      $controls.PreviewContainer.Background = [System.Windows.Media.Brush]::Parse($bgColor)
+      Write-Host "  Set BG: $bgColor" -ForegroundColor Green
+    } catch {
+      Write-Host "  Failed to parse BG color: $bgColor" -ForegroundColor Red
+    }
+  }
+  if (-not [string]::IsNullOrWhiteSpace($borderColor)) {
+    try {
+      $controls.PreviewContainer.BorderBrush = [System.Windows.Media.Brush]::Parse($borderColor)
+      Write-Host "  Set Border: $borderColor" -ForegroundColor Green
+    } catch {
+      Write-Host "  Failed to parse Border color: $borderColor" -ForegroundColor Red
+    }
+  }
+
+  # Update icon
+  $iconBg = $controls.IconBgColorBox.Text
+  $iconText = $controls.IconTextBox.Text
+  $iconTextColor = $controls.IconTextColorBox.Text
+
+  if (-not [string]::IsNullOrWhiteSpace($iconBg)) {
+    try { $controls.PreviewIconEllipse.Fill = [System.Windows.Media.Brush]::Parse($iconBg) } catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace($iconText)) {
+    $controls.PreviewIconText.Text = $iconText
+  }
+  if (-not [string]::IsNullOrWhiteSpace($iconTextColor)) {
+    try { $controls.PreviewIconText.Foreground = [System.Windows.Media.Brush]::Parse($iconTextColor) } catch {}
+  }
+
+  # Get font family
+  $fontFamily = $controls.FontFamilyBox.Text
+
+  # Subtitle (was called Title in old structure)
+  $subtitleSize = $controls.SubtitleFontSizeBox.Text
+  $subtitleColor = $controls.SubtitleColorBox.Text
+  $subtitleText = $controls.SubtitleBox.Text
+
+  if (-not [string]::IsNullOrWhiteSpace($fontFamily)) {
+    try { $controls.PreviewSubtitle.FontFamily = New-Object System.Windows.Media.FontFamily($fontFamily) } catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace($subtitleSize)) {
+    try { $controls.PreviewSubtitle.FontSize = [double]$subtitleSize } catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace($subtitleColor)) {
+    try { $controls.PreviewSubtitle.Foreground = [System.Windows.Media.Brush]::Parse($subtitleColor) } catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace($subtitleText)) {
+    $controls.PreviewSubtitle.Text = $subtitleText
+  } else {
+    $controls.PreviewSubtitle.Text = "任务已完成"
+  }
+
+  # Message
+  $messageSize = $controls.MessageFontSizeBox.Text
+  $messageColor = $controls.MessageColorBox.Text
+  $messageText = $controls.MessageBox.Text
+
+  if (-not [string]::IsNullOrWhiteSpace($fontFamily)) {
+    try { $controls.PreviewMessage.FontFamily = New-Object System.Windows.Media.FontFamily($fontFamily) } catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace($messageSize)) {
+    try { $controls.PreviewMessage.FontSize = [double]$messageSize } catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace($messageColor)) {
+    try { $controls.PreviewMessage.Foreground = [System.Windows.Media.Brush]::Parse($messageColor) } catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace($messageText)) {
+    $controls.PreviewMessage.Text = $messageText
+  } else {
+    $controls.PreviewMessage.Text = "请到 CLI/IDE 中查看详细信息"
+  }
+
+  # Button
+  $accentColor = $controls.AccentColorBox.Text
+  $okText = $controls.OkTextBox.Text
+
+  if (-not [string]::IsNullOrWhiteSpace($accentColor)) {
+    try { $controls.PreviewOkButton.Background = [System.Windows.Media.Brush]::Parse($accentColor) } catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace($okText)) {
+    $controls.PreviewOkButton.Content = $okText
+  }
+  if (-not [string]::IsNullOrWhiteSpace($fontFamily)) {
+    try { $controls.PreviewOkButton.FontFamily = New-Object System.Windows.Media.FontFamily($fontFamily) } catch {}
+  }
 }
 
 function Get-CodexTomlPathFromUI {
@@ -2102,6 +2374,9 @@ function Apply-ConfigToUI {
     if (-not [string]::IsNullOrWhiteSpace($logPath)) { $logPath = Normalize-WindowsPath $logPath }
     $controls.CodexLogPathBox.Text = $logPath
   }
+
+  # Update preview after loading config
+  Update-Preview
 }
 
 function Read-UIToConfig {
@@ -2507,6 +2782,49 @@ $controls.ThemePresetComboBox.Add_SelectionChanged({
     }
   }
 })
+
+# Helper function to handle style control changes
+$handleStyleControlChange = {
+  param($sender, $e)
+
+  # Only switch to custom if not currently applying a theme
+  if (-not $script:ApplyingTheme) {
+    $currentTheme = $controls.ThemePresetComboBox.SelectedValue
+    if ($currentTheme -ne "custom") {
+      $controls.ThemePresetComboBox.SelectedValue = "custom"
+      Set-Status "已切换到自定义主题"
+    }
+    # Update preview when controls change
+    Update-Preview
+  }
+}
+
+# Attach TextChanged events to all style controls
+$styleControls = @(
+  $controls.PopupWidthBox,
+  $controls.PopupMinHeightBox,
+  $controls.FontFamilyBox,
+  $controls.TitleFontSizeBox,
+  $controls.SubtitleFontSizeBox,
+  $controls.MessageFontSizeBox,
+  $controls.OkTextBox,
+  $controls.TitleColorBox,
+  $controls.SubtitleColorBox,
+  $controls.MessageColorBox,
+  $controls.BackgroundColorBox,
+  $controls.BorderColorBox,
+  $controls.DividerColorBox,
+  $controls.AccentColorBox,
+  $controls.IconTextBox,
+  $controls.IconTextColorBox,
+  $controls.IconBgColorBox
+)
+
+foreach ($ctrl in $styleControls) {
+  if ($null -ne $ctrl) {
+    $ctrl.Add_TextChanged($handleStyleControlChange)
+  }
+}
 
 $controls.CloseBtn.Add_Click({ $window.Close() })
 
