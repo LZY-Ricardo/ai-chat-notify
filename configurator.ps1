@@ -1412,14 +1412,6 @@ function New-SolidBrush {
 }
 
 function Update-Preview {
-  # Debug: Log current values
-  Write-Host "=== Update-Preview Called ===" -ForegroundColor Cyan
-  Write-Host "  BG Color: $($controls.BackgroundColorBox.Text)" -ForegroundColor Yellow
-  Write-Host "  Icon BG: $($controls.IconBgColorBox.Text)" -ForegroundColor Yellow
-  Write-Host "  Subtitle Color: $($controls.SubtitleColorBox.Text)" -ForegroundColor Yellow
-  Write-Host "  Message Color: $($controls.MessageColorBox.Text)" -ForegroundColor Yellow
-  Write-Host "  Accent Color: $($controls.AccentColorBox.Text)" -ForegroundColor Yellow
-
   # Update preview container styles
   $bgColor = $controls.BackgroundColorBox.Text
   $borderColor = $controls.BorderColorBox.Text
@@ -1432,28 +1424,19 @@ function Update-Preview {
       # Limit preview width to fit in the panel (max 400px)
       $previewWidth = [Math]::Min($width, 400)
       $controls.PreviewContainer.Width = $previewWidth
-      Write-Host "  Set Width: $previewWidth" -ForegroundColor Green
-    } catch {
-      Write-Host "  Failed to set width: $_" -ForegroundColor Red
-    }
+    } catch {}
   }
 
   if (-not [string]::IsNullOrWhiteSpace($bgColor)) {
     $brush = New-SolidBrush $bgColor
     if ($null -ne $brush) {
       $controls.PreviewContainer.Background = $brush
-      Write-Host "  Set BG: $bgColor" -ForegroundColor Green
-    } else {
-      Write-Host "  Failed to parse BG color: $bgColor" -ForegroundColor Red
     }
   }
   if (-not [string]::IsNullOrWhiteSpace($borderColor)) {
     $brush = New-SolidBrush $borderColor
     if ($null -ne $brush) {
       $controls.PreviewContainer.BorderBrush = $brush
-      Write-Host "  Set Border: $borderColor" -ForegroundColor Green
-    } else {
-      Write-Host "  Failed to parse Border color: $borderColor" -ForegroundColor Red
     }
   }
 
