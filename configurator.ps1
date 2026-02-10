@@ -692,7 +692,7 @@ $xaml = @'
 
     <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
       <TextBlock Text="配置文件：" VerticalAlignment="Center" />
-      <TextBox x:Name="ConfigPathBox" Width="520" Margin="8,0,0,0" />
+      <TextBox x:Name="ConfigPathBox" Width="520" Margin="8,0,0,0" TextAlignment="Center" />
       <Button x:Name="OpenConfigDirBtn" Content="打开目录" Margin="8,0,0,0" Padding="10,6" />
       <Button x:Name="ReloadBtn" Content="重新加载" Margin="8,0,0,0" Padding="10,6" />
     </StackPanel>
